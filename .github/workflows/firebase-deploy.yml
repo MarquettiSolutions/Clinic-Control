@@ -1,5 +1,6 @@
 name: Deploy Firebase backend
 
+
 on:
   push:
     branches:
@@ -12,12 +13,15 @@ on:
       - ".github/workflows/firebase-deploy.yml"
   workflow_dispatch:
 
+
 permissions:
   contents: read
+
 
 concurrency:
   group: firebase-backend
   cancel-in-progress: false
+
 
 jobs:
   deploy:
@@ -26,10 +30,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 22
+
 
       - name: Prepare Firebase credentials
         env:
@@ -38,6 +44,12 @@ jobs:
           test -n "$FIREBASE_SERVICE_ACCOUNT_B64"
           echo "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci --omit=dev
+
 
       - name: Deploy functions, Firestore rules and Storage rules
         run: npx --yes firebase-tools@15.30.0 deploy --project clinic-control-6ff25 --only functions,firestore:rules,storage --non-interactive
