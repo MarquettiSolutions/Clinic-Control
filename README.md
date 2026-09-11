@@ -17,7 +17,7 @@ Aplicación web para gestionar pacientes, consultas, cobros y reportes de una cl
 
 - Un proyecto en Firebase
 - Firestore habilitado
-- Authentication habilitado con acceso anónimo
+- Authentication habilitado con proveedor de correo y contraseña
 
 ## Configuración
 
@@ -25,7 +25,8 @@ Aplicación web para gestionar pacientes, consultas, cobros y reportes de una cl
 2. Reemplaza los valores con las credenciales de tu proyecto de Firebase.
 3. En Firebase Console habilita:
    - Firestore Database
-   - Authentication > Anonymous
+   - Storage
+   - Authentication > Sign-in method > Email/Password
 
 ## Cómo abrir localmente
 
@@ -40,9 +41,33 @@ Aplicación web para gestionar pacientes, consultas, cobros y reportes de una cl
 4. Guarda y espera a que el workflow publique la app.
 5. La URL quedará disponible en la sección Pages del repositorio.
 
+El workflow `Deploy to GitHub Pages` publica la interfaz web. El workflow
+`Deploy Firebase backend` publica las funciones y las reglas de Firestore y
+Storage cuando cambian esos archivos.
+
+Para habilitar el despliegue del backend, crea en GitHub el secreto
+`FIREBASE_SERVICE_ACCOUNT_B64` con la clave privada de una cuenta de servicio
+de Firebase codificada en Base64. No subas el archivo JSON al repositorio.
+
 ## Nota
 
-Para pruebas rápidas puedes usar estas reglas en Firestore:
+No reemplaces las reglas actuales por reglas públicas. Las reglas de este
+proyecto exigen autenticación y separan el acceso por clínica y rol.
+
+Para ejecutar las pruebas locales de reglas necesitas Java y Firebase CLI.
+Las pruebas generales se ejecutan con:
+
+```powershell
+npm test
+```
+
+La prueba de reglas se ejecuta con:
+
+```powershell
+npm run test:rules
+```
+
+Para pruebas rápidas aisladas, nunca en un entorno con datos reales, podrías usar estas reglas abiertas:
 
 ```js
 rules_version = '2';
