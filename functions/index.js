@@ -202,7 +202,7 @@ exports.sendBirthdayEmails = onSchedule({
 });
 
 function portalCors(response) {
-  response.set("Access-Control-Allow-Origin", "https://njdesignprint-cloud.github.io");
+  response.set("Access-Control-Allow-Origin", "https://marquettisolutions.github.io");
   response.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
 }
@@ -255,7 +255,7 @@ exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutS
       const code = portalCode(); const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
       await db.collection("patientPortalSessions").doc(portalKey(code)).set({ clinicId, roomId, patientId, activities: safeActivities, language, completionAction, currentIndex: 0, status: "active", createdBy: user.uid, createdAt: FieldValue.serverTimestamp(), expiresAt });
       await roomSnap.ref.set({ status: roomSnap.data().status === "waiting" ? "nursing" : roomSnap.data().status, portalActive: true, portalExpiresAt: expiresAt, updatedAt: new Date().toISOString() }, { merge: true });
-      return response.json({ code, expiresAt: expiresAt.toISOString(), portalUrl: `https://njdesignprint-cloud.github.io/Clinic-Control/patient.html?code=${encodeURIComponent(code)}` });
+      return response.json({ code, expiresAt: expiresAt.toISOString(), portalUrl: `https://marquettisolutions.github.io/Clinic-Control/patient.html?code=${encodeURIComponent(code)}` });
     }
 
     if (action === "analyzeDocument") {
