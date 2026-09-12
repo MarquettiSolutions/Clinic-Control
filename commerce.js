@@ -49,6 +49,12 @@
   }
   function shell(title, content) {
     dialog.innerHTML = `<div class="platform-header"><h2>${title}</h2><button class="btn light" data-platform-close aria-label="${tr("Cerrar", "Close")}">×</button></div><div class="platform-content">${content}<p data-platform-notice role="status" hidden></p></div>`;
+    const headings = [...dialog.querySelectorAll("th")].map(th => th.textContent.trim());
+    dialog.querySelectorAll("tbody tr").forEach(row => [...row.cells].forEach((cell, index) => {
+      if (headings[index] && !cell.hasAttribute("colspan")) cell.dataset.label = headings[index];
+      const select = cell.querySelector("select");
+      if (select && headings[index]) select.setAttribute("aria-label", headings[index]);
+    }));
     if (!dialog.open) dialog.showModal();
   }
   function subscription() {
