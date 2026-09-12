@@ -36,7 +36,7 @@ module.exports = async function() {
   };
   const context=vm.createContext({require:name=>modules[name],exports:{},console:{log(){}}});
   vm.runInContext(fs.readFileSync('functions/directory-events.js','utf8'),context);
-  assert.equal(triggerOptions.document,'clinics/{clinicId}/settings/clinic');assert.equal(triggerOptions.retry,true);
+  assert.equal(triggerOptions.document,'clinics/{clinicId}/settings/clinic');assert.equal(triggerOptions.retry,false);
   await context.exports.syncClinicDirectory({data:{after:{exists:true}},params:{clinicId:'new-clinic'}});
   await context.exports.syncClinicDirectory({data:{after:{exists:false}},params:{clinicId:'deleted-clinic'}});
   assert.deepEqual(triggered,['new-clinic']);

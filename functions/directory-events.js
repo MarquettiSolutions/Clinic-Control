@@ -5,7 +5,8 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { createDirectorySync } = require("./directory-sync");
 const service = () => createDirectorySync({ db: getFirestore(), auth: getAuth(), timestamp: () => FieldValue.serverTimestamp() });
-exports.syncClinicDirectory = onDocumentWritten({ document: "clinics/{clinicId}/settings/clinic", region: "us-central1", retry: true }, async event => {
+// The daily reconciliation recovers transient failures without continuous event retries.
+exports.syncClinicDirectory = onDocumentWritten({ document: "clinics/{clinicId}/settings/clinic", region: "us-central1", retry: false }, async event => {
   // Deleting settings must never delete a business account or its historical owner notes.
   if (!event.data?.after.exists) return;
   await service().syncClinic(event.params.clinicId);
