@@ -2,6 +2,13 @@
 
 ## What is enabled
 
+- Direct owner entry: `admin.html` redirects to the authenticated `index.html#platform` view. Bookmark it or use **Owner dashboard / Panel del dueño** in the sidebar.
+- A full-window owner console with Overview, Clinics, Trials, Subscriptions & payments, and Setup sections.
+- Search and filters apply to loaded directory pages; summary counters are explicitly labeled as loaded counts, not global totals.
+- Each clinic has a business-only detail view, private owner note, custom pilot date and 7/14/30-day extensions with a required reason. Extensions start from the later of the existing end date or today in UTC. They update tracking metadata, not application access or Stripe trials.
+- Extension requests are transactionally deduplicated by request ID. Notes and date/status changes also produce server-side audit events. The clinic view displays the latest 50 entries from the new per-clinic history; older global audit entries are preserved but are not backfilled into this view.
+- No payment failures, paid plans, revenue or debts are invented. The billing view shows unavailable states and links to the owner's Stripe dashboard until integration is completed.
+
 - Public product homepage, separate sign-in and pilot registration views.
 - English by default, English/Spanish switch, saved preference per browser.
 - Local editorial catalog for system copy, form labels, validation, invoices and payment report headings. No online machine-translation service receives patient data.

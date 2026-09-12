@@ -46,6 +46,29 @@
 .platform-dialog td { overflow-wrap:anywhere; }
 .platform-dialog td small { display:block; color:#526477; }
 .platform-dialog input,.platform-dialog select { padding:8px; width:100%; min-width:0; max-width:200px; box-sizing:border-box; border:1px solid #a8becf; border-radius:8px; background:#fff; color:#173047; }
+.platform-dialog.owner-console { width:calc(100vw - 24px); height:calc(100dvh - 24px); max-width:1440px; max-height:calc(100dvh - 24px); background:#f5f8fc; }
+.owner-console .platform-content { max-width:1280px; margin:auto; }
+.owner-topline,.owner-toolbar { display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap; }
+.owner-topline>div,.owner-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+.owner-tabs { margin:24px 0; border-bottom:1px solid #dbe5ec; padding-bottom:16px; }
+.owner-metrics,.owner-clinics { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin:20px 0; }
+.owner-metrics article,.owner-clinic,.owner-detail-grid>section { background:white; border:1px solid #dbe5ec; border-radius:16px; padding:22px; min-width:0; overflow-wrap:anywhere; }
+.owner-metrics strong { display:block; font-size:32px; color:#0f766e; }
+.owner-metrics span,.owner-metrics small { display:block; }
+.owner-alert { padding:18px; background:#fff5dd; color:#684400; border:1px solid #e9d29e; border-radius:12px; margin:18px 0; }
+.owner-alert p { margin-bottom:0; }
+.owner-console label { display:grid; gap:6px; color:#334155; font-weight:600; }
+.owner-console input,.owner-console select,.owner-console textarea { max-width:none; width:100%; min-height:44px; border:1px solid #a8becf; background:#fff; color:#173047; border-radius:8px; padding:10px; font:inherit; box-sizing:border-box; }
+.owner-toolbar label:first-child { flex:1; }
+.owner-badge { display:inline-block; background:#e0f4ee; color:#14594b; border-radius:8px; padding:4px 10px; font-size:13px; font-weight:700; }
+.owner-clinic h3 { margin-top:0; }
+.owner-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.owner-console form { display:grid; gap:14px; margin:20px 0; }
+.owner-history { padding-left:20px; }
+.owner-history li { border-bottom:1px solid #dbe5ec; padding:12px 0; }
+.owner-history small { display:block; color:#526477; overflow-wrap:anywhere; }
+.owner-console .btn { text-decoration:none; }
+@media(max-width:760px) { .owner-detail-grid { grid-template-columns:1fr; } .owner-topline { align-items:flex-start; } .owner-toolbar { align-items:stretch; flex-direction:column; } }
 @media(max-width:640px) {
   .platform-header,.platform-content { padding:16px; }
   .platform-header h2 { font-size:20px; }

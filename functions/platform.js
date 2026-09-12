@@ -13,7 +13,7 @@ if (process.env.FUNCTIONS_EMULATOR === "true") {
 }
 
 function publicClinic(id, data = {}) {
-  return { id, name: data.name || "", ownerEmail: data.ownerEmail || "", status: data.status || "pilot", createdAt: data.createdAt?.toDate?.().toISOString() || null, pilotEndsAt: data.pilotEndsAt || null };
+  return { id, name: data.name || "", ownerEmail: data.ownerEmail || "", status: data.status || "pilot", createdAt: data.createdAt?.toDate?.().toISOString() || null, pilotEndsAt: data.pilotEndsAt || null, ownerNote: data.ownerNote || "" };
 }
 
 exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "public", timeoutSeconds: 30 }, async (req, res) => {
@@ -35,6 +35,48 @@ exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "
   const db = getFirestore();
   const action = req.body?.action;
   try {
+    if (["ownerDetails", "extendPilot", "saveOwnerNote"].includes(action)) {
+      if (user.platformAdmin !== true) return res.status(403).json({ error: "platform-access-required" });
+      const { clinicId, requestId, days, reason, note } = req.body;
+      if (typeof clinicId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(clinicId)) return res.status(400).json({ error: "invalid-request" });
+      const ref = db.collection("platformClinics").doc(clinicId);
+      if (action === "ownerDetails") {
+        const snapshot = await ref.get();
+        if (!snapshot.exists) return res.status(404).json({ error: "not-found" });
+        const history = await ref.collection("history").orderBy("createdAt", "desc").limit(50).get();
+        return res.json({ clinic: publicClinic(clinicId, snapshot.data()), history: history.docs.map(doc => {
+          const item = doc.data();
+          return { id: doc.id, action: item.action, actorUid: item.actorUid, reason: item.reason || "", previousEnd: item.previousEnd || null, pilotEndsAt: item.pilotEndsAt || null, status: item.status || null, days: item.days || null, createdAt: item.createdAt?.toDate?.().toISOString() || null };
+        }) });
+      }
+      if (typeof requestId !== "string" || !/^[A-Za-z0-9_-]{16,80}$/.test(requestId)) return res.status(400).json({ error: "invalid-request" });
+      if (action === "extendPilot" && (![7,14,30].includes(days) || typeof reason !== "string" || !reason.trim() || reason.length > 500)) return res.status(400).json({ error: "invalid-request" });
+      if (action === "saveOwnerNote" && (typeof note !== "string" || note.length > 2000)) return res.status(400).json({ error: "invalid-request" });
+      const eventRef = ref.collection("history").doc(requestId);
+      await db.runTransaction(async tx => {
+        const snapshot = await tx.get(ref);
+        const previousEvent = await tx.get(eventRef);
+        if (!snapshot.exists) throw new Error("not-found");
+        // A retried request must not add the same days twice.
+        if (previousEvent.exists) return;
+        const data = snapshot.data();
+        const update = { updatedAt: FieldValue.serverTimestamp() };
+        const event = { actorUid: user.uid, clinicId, action, createdAt: FieldValue.serverTimestamp() };
+        if (action === "extendPilot") {
+          const today = new Date().toISOString().slice(0,10);
+          const base = data.pilotEndsAt && data.pilotEndsAt > today ? data.pilotEndsAt : today;
+          const date = new Date(`${base}T00:00:00Z`);
+          date.setUTCDate(date.getUTCDate() + days);
+          update.pilotEndsAt = date.toISOString().slice(0,10);
+          update.status = "pilot";
+          Object.assign(event, { previousEnd: data.pilotEndsAt || null, pilotEndsAt: update.pilotEndsAt, days, reason: reason.trim() });
+        } else update.ownerNote = note.trim();
+        tx.update(ref, update);
+        tx.create(eventRef, event);
+        tx.create(db.collection("platformAudit").doc(), event);
+      });
+      return res.json({ saved: true, clinic: publicClinic(clinicId, (await ref.get()).data()) });
+    }
     if (action === "ownerOverview") {
       // A trusted administrator grants this claim through Admin SDK only.
       if (user.platformAdmin !== true) return res.status(403).json({ error: "platform-access-required" });
@@ -53,9 +95,12 @@ exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "
       if (pilotEndsAt && new Date(`${pilotEndsAt}T00:00:00Z`).toISOString().slice(0, 10) !== pilotEndsAt) return res.status(400).json({ error: "invalid-request" });
       const ref = db.collection("platformClinics").doc(clinicId);
       await db.runTransaction(async tx => {
-        if (!(await tx.get(ref)).exists) throw new Error("not-found");
+        const previous = await tx.get(ref);
+        if (!previous.exists) throw new Error("not-found");
         tx.update(ref, { status, pilotEndsAt, updatedAt: FieldValue.serverTimestamp() });
-        tx.create(db.collection("platformAudit").doc(), { actorUid: user.uid, clinicId, action: "updatePilot", status, pilotEndsAt, createdAt: FieldValue.serverTimestamp() });
+        const event = { actorUid: user.uid, clinicId, action: "updatePilot", status, previousEnd: previous.data().pilotEndsAt || null, pilotEndsAt, createdAt: FieldValue.serverTimestamp() };
+        tx.create(db.collection("platformAudit").doc(), event);
+        tx.create(ref.collection("history").doc(), event);
       });
       return res.json({ saved: true });
     }

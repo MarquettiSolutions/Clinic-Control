@@ -9,7 +9,7 @@ const records=new Map([
 ]);
 const docs=[];
 function ref(path){return {id:path.split('/').pop(),path,get:async()=>({exists:records.has(path),data:()=>records.get(path)}),collection:name=>collection(`${path}/${name}`)};}
-function collection(path){return {doc:(id='audit')=>ref(`${path}/${id}`),orderBy:()=>({limit:()=>({get:async()=>({size:docs.length,docs}),startAfter:()=>({get:async()=>({size:0,docs:[]})})})})};}
+function collection(path){return {doc:(id='audit')=>ref(`${path}/${id}`),orderBy:()=>({limit:()=>({get:async()=>{const found=path.endsWith('/history')?[...records.entries()].filter(([key])=>key.startsWith(path+'/')).map(([key,value])=>({id:key.split('/').pop(),data:()=>value})):docs;return {size:found.length,docs:found}},startAfter:()=>({get:async()=>({size:0,docs:[]})})})})};}
 const db={doc:ref,collection,runTransaction:async fn=>fn({get:r=>r.get(),set:(r,data,options)=>records.set(r.path,options?.merge?{...records.get(r.path),...data}:data),update:(r,data)=>records.set(r.path,{...records.get(r.path),...data}),create:(r,data)=>records.set(r.path,data)})};
 const modules={
   'firebase-functions/v2/https':{onRequest:(_,fn)=>fn},
@@ -47,5 +47,33 @@ async function request(token,body,origin='https://marquettisolutions.github.io',
  assert.equal((await request('owner',{action:'updatePilot',clinicId:'clinic',status:'pilot',pilotEndsAt:'2026-12-31'})).statusCode,200);
  assert.equal(records.get('platformAudit/audit').actorUid,'platform-owner');
  assert.equal(records.get('platformClinics/clinic').pilotEndsAt,'2026-12-31');
+ for(const action of ['ownerDetails','extendPilot','saveOwnerNote']) {
+   assert.equal((await request('clinic',{action,clinicId:'clinic'})).statusCode,403);
+   assert.equal((await request('forged',{action,clinicId:'clinic'})).statusCode,403);
+ }
+ assert.equal((await request('owner',{action:'ownerDetails',clinicId:'missing'})).statusCode,404);
+ assert.equal((await request('owner',{action:'ownerDetails',clinicId:'../clinic'})).statusCode,400);
+ const extension={action:'extendPilot',clinicId:'clinic',days:14,reason:'Extra evaluation time',requestId:'extension-0000000001'};
+ assert.equal((await request('owner',{...extension,days:-1})).statusCode,400);
+ assert.equal((await request('owner',{...extension,reason:''})).statusCode,400);
+ assert.equal((await request('owner',{...extension,requestId:'short'})).statusCode,400);
+ records.get('platformClinics/clinic').pilotEndsAt='2099-01-01';
+ assert.equal((await request('owner',extension)).statusCode,200);
+ assert.equal(records.get('platformClinics/clinic').pilotEndsAt,'2099-01-15');
+ await request('owner',extension);
+ assert.equal(records.get('platformClinics/clinic').pilotEndsAt,'2099-01-15','Retry must not double the extension');
+ records.get('platformClinics/clinic').pilotEndsAt='2000-01-01';
+ await request('owner',{...extension,requestId:'extension-0000000002',days:7});
+ const expected=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z');expected.setUTCDate(expected.getUTCDate()+7);
+ assert.equal(records.get('platformClinics/clinic').pilotEndsAt,expected.toISOString().slice(0,10));
+ assert.equal((await request('owner',{action:'saveOwnerNote',clinicId:'clinic',note:'Business follow-up',requestId:'note-000000000001'})).statusCode,200);
+ const details=(await request('owner',{action:'ownerDetails',clinicId:'clinic'})).body;
+ assert.equal(details.clinic.ownerNote,'Business follow-up');
+ assert.ok(details.history.some(item=>item.action==='extendPilot'&&item.reason==='Extra evaluation time'));
+ assert.equal(details.clinic.patients,undefined);
+ assert.equal((await request('owner',{action:'saveOwnerNote',clinicId:'clinic',note:'x'.repeat(2001),requestId:'note-000000000002'})).statusCode,400);
+ assert.equal(records.get('clinics/clinic/settings/clinic').clinicName,'Fictional Clinic');
+ new vm.Script(fs.readFileSync('owner-dashboard.js','utf8'));
+ assert.ok(fs.readFileSync('admin.html','utf8').includes('./index.html#platform'));
  console.log('Platform checks passed: authentication, trusted owner claim, cross-clinic isolation, metadata-only directory, audit, and disabled billing.');
 })().catch(error=>{console.error(error);process.exitCode=1});
