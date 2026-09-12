@@ -1,8 +1,6 @@
 name: Recordatorios automáticos
 
 on:
-  schedule:
-    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -43,5 +41,6 @@ jobs:
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
           CLINIC_TIME_ZONE: America/Chicago
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          # Firebase owns all delivery. This legacy workflow is read-only diagnostics.
+          DRY_RUN: 'true'
         run: node automation/send-emails.js

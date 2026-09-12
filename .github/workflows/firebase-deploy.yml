@@ -8,6 +8,8 @@ on:
     paths:
       - "functions/**"
       - "scripts/sync-platform-directory.cjs"
+      - "scripts/prepare-mail-secrets.cjs"
+      - "scripts/check-mail-automation.cjs"
       - "firestore.rules"
       - "storage.rules"
       - "firebase.json"
@@ -47,7 +49,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
       - name: Check portal regressions
-        run: node tests/portal-regression.cjs && node tests/platform-regression.cjs
+        run: node tests/portal-regression.cjs && node tests/platform-regression.cjs && node tests/mail-regression.cjs
 
 
       - name: Install Functions dependencies
@@ -56,7 +58,14 @@ jobs:
 
 
       - name: Deploy functions, Firestore rules and Storage rules
-        run: npx --yes firebase-tools@15.30.0 deploy --project clinic-control-6ff25 --only functions,firestore:rules,storage --non-interactive
+        # SMTP credentials remain in Secret Manager, not function source or logs.
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          node scripts/prepare-mail-secrets.cjs
+          npx --yes firebase-tools@15.30.0 deploy --project clinic-control-6ff25 --only functions,firestore:rules,storage --non-interactive
+          node scripts/check-mail-automation.cjs
 
       - name: Preview existing clinic directory reconciliation
         run: node scripts/sync-platform-directory.cjs --project=clinic-control-6ff25

@@ -61,3 +61,14 @@ Live billing integration, finalized plans and terms, MFA enforcement, privacy/se
 For a read-only local preview: `node scripts/preview.cjs`, then open `http://127.0.0.1:3033`. It does not open or migrate the SQLite database.
 
 Reference documentation: [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims), [Stripe Checkout](https://docs.stripe.com/payments/checkout/build-subscriptions), [Stripe subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks).
+# Email automation (September 2026)
+
+Firebase `sendBirthdayEmails` now owns birthday, appointment and administrative pilot-date mail, on a 15-minute Cloud Scheduler cadence (America/Chicago). The historical function name is retained to update the existing job; it no longer writes birthday mail into the unused `mail` queue. GitHub email automation is manual, dry-run diagnostics only.
+
+SMTP credentials are copied from the existing GitHub secrets into Secret Manager by the trusted deploy workflow, never into public source or logs. Gmail is the authenticated sender; clinic email is Reply-To, not an unverified From address. No SMTP acceptance is presented as proof of inbox delivery.
+
+Patient opt-ins and appointment reminder flags are required. Past/cancelled appointments are excluded. The nearest due stage (72h, 48h, 3h) catches up after a delay without sending all stages together. Delivery claims in `emailLogs` preserve historical logs and prevent overlapping jobs from duplicating a message. SMTP timeouts or failures are marked `needs_review`, never blindly retried because acceptance can be uncertain. Inspect these privately before manually resolving a failed delivery. SMTP verification failures leave the previous run timestamp unchanged; a timestamp older than 45 minutes is flagged in the owner console.
+
+Pilot notices apply only to verified, enabled owners of pilot clinics with a real end date, at 7/3/1/0 days. They explicitly promise no charges or access restrictions. Archived, undated and unverified accounts are skipped. English is default; the owner can select Spanish in clinic details. Extending the date changes future reminders. No payment-failure, renewal or billing email is emitted without the separately verified Stripe integration.
+
+Owner console: Setup → Check latest email run. This endpoint exposes aggregate health only and requires the platform-owner claim. No patient or recipient data is returned.

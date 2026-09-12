@@ -14,7 +14,7 @@ if (process.env.FUNCTIONS_EMULATOR === "true") {
 }
 
 function publicClinic(id, data = {}) {
-  return { id, name: data.name || "", ownerEmail: data.ownerEmail || "", status: data.status || "pilot", createdAt: data.createdAt?.toDate?.().toISOString() || null, pilotEndsAt: data.pilotEndsAt || null, ownerNote: data.ownerNote || "" };
+  return { id, name: data.name || "", ownerEmail: data.ownerEmail || "", language: data.language === "es" ? "es" : "en", status: data.status || "pilot", createdAt: data.createdAt?.toDate?.().toISOString() || null, pilotEndsAt: data.pilotEndsAt || null, ownerNote: data.ownerNote || "" };
 }
 
 exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "public", timeoutSeconds: 30 }, async (req, res) => {
@@ -36,6 +36,12 @@ exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "
   const db = getFirestore();
   const action = req.body?.action;
   try {
+    if (action === "emailStatus") {
+      if (user.platformAdmin !== true) return res.status(403).json({ error: "platform-access-required" });
+      const snap = await db.doc("platformOperations/email").get();
+      const data = snap.data() || {};
+      return res.json({ status: data.status || "not-run", lastRunAt: data.lastRunAt?.toDate?.().toISOString() || null, sent: data.sent || 0, failed: data.needsReview || data.failed || 0 });
+    }
     if (["ownerDetails", "extendPilot", "saveOwnerNote"].includes(action)) {
       if (user.platformAdmin !== true) return res.status(403).json({ error: "platform-access-required" });
       const { clinicId, requestId, days, reason, note } = req.body;
@@ -91,14 +97,15 @@ exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "
     }
     if (action === "updatePilot") {
       if (user.platformAdmin !== true) return res.status(403).json({ error: "platform-access-required" });
-      const { clinicId, status, pilotEndsAt } = req.body;
+      const { clinicId, status, pilotEndsAt, language } = req.body;
+      if (language !== undefined && !["en", "es"].includes(language)) return res.status(400).json({ error: "invalid-request" });
       if (typeof clinicId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(clinicId) || !["pilot", "contact_requested", "archived"].includes(status) || (pilotEndsAt !== null && (typeof pilotEndsAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(pilotEndsAt) || !Number.isFinite(Date.parse(pilotEndsAt))))) return res.status(400).json({ error: "invalid-request" });
       if (pilotEndsAt && new Date(`${pilotEndsAt}T00:00:00Z`).toISOString().slice(0, 10) !== pilotEndsAt) return res.status(400).json({ error: "invalid-request" });
       const ref = db.collection("platformClinics").doc(clinicId);
       await db.runTransaction(async tx => {
         const previous = await tx.get(ref);
         if (!previous.exists) throw new Error("not-found");
-        tx.update(ref, { status, pilotEndsAt, updatedAt: FieldValue.serverTimestamp() });
+        tx.update(ref, { status, pilotEndsAt, ...(language ? { language } : {}), updatedAt: FieldValue.serverTimestamp() });
         const event = { actorUid: user.uid, clinicId, action: "updatePilot", status, previousEnd: previous.data().pilotEndsAt || null, pilotEndsAt, createdAt: FieldValue.serverTimestamp() };
         tx.create(db.collection("platformAudit").doc(), event);
         tx.create(ref.collection("history").doc(), event);

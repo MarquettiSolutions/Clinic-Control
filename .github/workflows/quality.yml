@@ -32,7 +32,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Run application tests
-        run: npm test
+        run: npm test && node tests/mail-regression.cjs
 
       - name: Run Firestore rules tests
         run: npm run test:rules
