@@ -57,6 +57,8 @@
             <input id="loginShowPassword" type="checkbox" /> <span>Mostrar contraseña</span>
           </label>
           <button class="btn primary auth-submit" type="submit">Ingresar <span>→</span></button>
+          <button id="passwordRecovery" class="btn light" type="button" translate="no" aria-describedby="passwordRecoveryNotice">Forgot your password?</button>
+          <p id="passwordRecoveryNotice" translate="no" role="status" aria-live="polite" hidden></p>
         </form>
 
         <form id="registerForm" class="auth-form">
@@ -1100,5 +1102,6 @@
   <script src="commerce-config.js?v=20260912-1"></script>
   <script src="app.js?v=20260912-5"></script>
   <script src="commerce.js?v=20260912-6"></script>
+  <script src="password-recovery.js?v=20260912-1"></script>
 </body>
 </html>

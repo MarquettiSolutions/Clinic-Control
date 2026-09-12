@@ -29,12 +29,12 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Check website and portal
-        run: node tests/smoke-check.js && node tests/portal-regression.cjs && node tests/accounting-regression.cjs && node tests/registration-regression.cjs && node tests/i18n-regression.cjs && node tests/platform-regression.cjs
+        run: node tests/smoke-check.js && node tests/portal-regression.cjs && node tests/accounting-regression.cjs && node tests/registration-regression.cjs && node tests/i18n-regression.cjs && node tests/platform-regression.cjs && node tests/password-recovery-regression.cjs
 
       - name: Prepare public website
         run: |
           mkdir -p _site
-          cp index.html admin.html admin.js admin.css owner-dashboard.js app.js styles.css firebase-config.js patient.html patient.js patient.css commerce.js commerce.css commerce-config.js i18n.js i18n-catalog.js _site/
+          cp index.html admin.html admin.js admin.css owner-dashboard.js app.js styles.css firebase-config.js patient.html patient.js patient.css commerce.js commerce.css commerce-config.js i18n.js i18n-catalog.js password-recovery.js _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

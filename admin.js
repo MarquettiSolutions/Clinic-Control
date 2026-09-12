@@ -7,7 +7,7 @@
   const text=key=>copy[key]?.[language==='es'?0:1]||'';
   let auth, authorized=false, version=0, rows=[], cursor=null, loading=false, noticeKey='checking';
   const login=document.getElementById('adminLogin'), form=document.getElementById('adminLoginForm'), root=document.getElementById('platformDialog'), signOut=document.getElementById('adminSignOut');
-  function localize(){document.documentElement.lang=language;document.title=`Clinic Control | ${text('brand')}`;root.setAttribute('aria-label',text('brand'));document.querySelectorAll('[data-copy]').forEach(n=>n.textContent=text(n.dataset.copy));document.getElementById('adminAuthNotice').textContent=text(noticeKey);window.ClinicOwnerDashboard.relocalize();}
+  function localize(){document.documentElement.lang=language;document.title=`Clinic Control | ${text('brand')}`;root.setAttribute('aria-label',text('brand'));document.querySelectorAll('[data-copy]').forEach(n=>n.textContent=text(n.dataset.copy));document.getElementById('adminAuthNotice').textContent=text(noticeKey);window.ClinicOwnerDashboard.relocalize();window.ClinicPasswordRecovery?.relocalize();}
   window.ClinicI18n={get language(){return language;},setLanguage(value){language=value==='es'?'es':'en';try{localStorage.setItem('clinicOwnerLanguage',language);}catch{}localize();}};
   function authNotice(key){noticeKey=key;document.getElementById('adminAuthNotice').textContent=text(key);}
   function notice(message){const n=root.querySelector('[data-platform-notice]');if(n){n.textContent=message;n.hidden=false;}}
