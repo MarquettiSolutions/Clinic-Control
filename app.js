@@ -2185,7 +2185,15 @@ async function saveCampaign() {
 function accountingReceipts(dateFrom = "", dateTo = "", method = "") {
   const inRange = (value) => { const date = String(value || "").slice(0, 10); return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo); };
   const later = state.payments.filter((entry) => inRange(entry.date) && (!method || entry.method === method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const initial = state.visits.filter((visit) => inRange(visit.date)).reduce((sum, visit) => { if (method && method !== "cash") return sum; const relatedLater = state.payments.filter((entry) => entry.visitId === visit.id && (!method || entry.method === method)).reduce((value, entry) => value + Number(entry.amount || 0), 0); const rawInitial = method === "cash" ? (paymentType(visit) === "cash" ? Number(visit.patientPaid ?? visit.paid ?? 0) : 0) : Number(visit.patientPaid || 0) + Number(visit.insurancePaid || 0); return sum + Math.max(0, rawInitial - relatedLater); }, 0);
+  const initial = state.visits.filter((visit) => inRange(visit.date)).reduce((sum, visit) => {
+    if (method && method !== "cash") return sum;
+    const relatedLater = state.payments.filter((entry) => entry.visitId === visit.id).reduce((value, entry) => value + Number(entry.amount || 0), 0);
+    const rawPaid = visit.patientPaid !== undefined || visit.insurancePaid !== undefined
+      ? Number(visit.patientPaid || 0) + Number(visit.insurancePaid || 0)
+      : Number(visit.paid || 0);
+    if (method === "cash" && paymentType(visit) !== "cash") return sum;
+    return sum + Math.max(0, rawPaid - relatedLater);
+  }, 0);
   const refunds = state.adjustments.filter((entry) => entry.type === "refund" && inRange(entry.date) && (!method || (method === "cash" && paymentType(state.visits.find((visit) => visit.id === entry.visitId) || {}) === "cash"))).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   return Math.max(0, later + initial - refunds);
 }
