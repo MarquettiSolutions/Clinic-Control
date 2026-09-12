@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check app.js && node --check patient.js && node --check functions/index.js && node --check automation/send-emails.js && node tests/smoke-check.js && node tests/sqlite-smoke.cjs && node tests/portal-regression.cjs && node tests/accounting-regression.cjs",
-    "test:rules": "npx --yes firebase-tools@15.30.0 emulators:exec --only firestore \"node tests/firestore-rules.test.cjs\""
+    "test": "node --check app.js && node --check patient.js && node --check functions/index.js && node --check automation/send-emails.js && node tests/smoke-check.js && node tests/sqlite-smoke.cjs && node tests/portal-regression.cjs && node tests/accounting-regression.cjs && node tests/registration-regression.cjs",
+    "test:rules": "npx --yes firebase-tools@15.30.0 emulators:exec --only auth,firestore \"node tests/firestore-rules.test.cjs && node tests/registration-integration.cjs\""
   },
   "dependencies": {
     "express": "^4.19.0",

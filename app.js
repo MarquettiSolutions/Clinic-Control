@@ -39,6 +39,8 @@ let activePatientFormResponseId = null;
 let activeWaitlistId = null;
 let activeKioskSession = (() => { try { return JSON.parse(sessionStorage.getItem("clinicKioskSession") || "null"); } catch { return null; } })();
 let pendingRoomIpadId = null;
+let registrationInProgress = false;
+let setupNoticeDismissedFor = null;
 
 function uid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -845,6 +847,7 @@ function showPage(pageId) {
 }
 
 function render() {
+  $("#clinicSetupNotice").classList.toggle("hidden", currentAccess.role !== "admin" || !activeClinicId || setupNoticeDismissedFor === activeClinicId || Boolean(state.settings.clinicAddress && state.settings.clinicPhone && state.settings.clinicLogo));
   renderDashboard();
   renderPatients();
   renderAppointments();
@@ -3527,14 +3530,13 @@ $("#loginForm").addEventListener("submit", async (event) => {
 
 $("#registerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (registrationInProgress) return;
   const clinicName = $("#registerClinicName").value.trim();
-  const clinicAddress = $("#registerClinicAddress").value.trim();
-  const clinicPhone = $("#registerClinicPhone").value.trim();
   const email = $("#registerEmail").value.trim().toLowerCase();
   const password = $("#registerPassword").value;
   const confirm = $("#registerConfirm").value;
 
-  if (!clinicName || !clinicAddress || !clinicPhone || !email || !password || !confirm) {
+  if (!clinicName || !email || !password || !confirm) {
     toast("Completa todos los campos de registro.");
     return;
   }
@@ -3554,17 +3556,21 @@ $("#registerForm").addEventListener("submit", async (event) => {
     return;
   }
 
+  registrationInProgress = true;
+  const submitButton = event.currentTarget.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  let createdUser = null;
+  let settingsSaved = false;
   try {
-    const clinicLogo = await readLogoFile($("#registerClinicLogo").files[0]);
     initFirebase();
     const credential = await auth.createUserWithEmailAndPassword(email, password);
+    createdUser = credential.user;
     await firestore.collection("clinics").doc(credential.user.uid).collection("settings").doc("clinic").set({
       clinicName,
-      clinicAddress,
-      clinicPhone,
+      clinicAddress: "",
+      clinicPhone: "",
       clinicEmail: email,
-      clinicLogo,
-      senderEmail: email,
+      clinicLogo: "",
       invoicePrefix: "FAC",
       invoiceAccentColor: "#0f766e",
       invoiceLogoPosition: "left",
@@ -3575,14 +3581,24 @@ $("#registerForm").addEventListener("submit", async (event) => {
       invoiceShowDoctor: true,
       invoiceShowInsurance: true
     }, { merge: true });
-    state.settings = { ...state.settings, clinicName, clinicAddress, clinicPhone, clinicEmail: email, clinicLogo };
-    render();
-    toast("Cuenta creada. Bienvenido.");
+    settingsSaved = true;
+    $("#registerForm").reset();
   } catch (error) {
     console.error(error);
-    toast(getAuthErrorMessage(error, "register"));
+    if (!createdUser) toast(getAuthErrorMessage(error, "register"));
+  } finally {
+    registrationInProgress = false;
+    submitButton.disabled = false;
+  }
+  if (createdUser) {
+    await handleAuthState(createdUser);
+    showPage("dashboard");
+    toast(settingsSaved ? "Cuenta creada. Puedes completar los datos en Ajustes." : "Tu cuenta fue creada, pero no se guardaron los datos de la clínica. Complétalos en Ajustes; no necesitas registrarte otra vez.");
   }
 });
+
+$("#clinicSetupOpen").addEventListener("click", () => showPage("settings"));
+$("#clinicSetupLater").addEventListener("click", () => { setupNoticeDismissedFor = activeClinicId; $("#clinicSetupNotice").classList.add("hidden"); });
 
 $("#loginShowPassword").addEventListener("change", (event) => {
   $("#loginPassword").type = event.target.checked ? "text" : "password";
@@ -3595,6 +3611,7 @@ $("#registerShowPassword").addEventListener("change", (event) => {
 });
 
 async function handleAuthState(user) {
+  if (registrationInProgress) return;
   if (user) {
     try {
       await resolveUserAccess(user);

@@ -68,26 +68,13 @@
             <input id="registerClinicName" type="text" placeholder="Ej. Clínica San José" autocomplete="organization" required />
           </label>
           <label>
-            Dirección
-            <input id="registerClinicAddress" type="text" placeholder="Dirección de la clínica" autocomplete="street-address" required />
-          </label>
-          <label>
-            Teléfono
-            <input id="registerClinicPhone" type="tel" placeholder="(555) 123-4567" autocomplete="tel" required />
-          </label>
-          <label>
-            Logo de la clínica <small class="optional-label">(opcional)</small>
-            <input id="registerClinicLogo" type="file" accept="image/png,image/jpeg,image/webp" />
-            <small class="auth-field-note">PNG, JPG o WebP. Máximo 350 KB.</small>
-          </label>
-          <label>
             Correo electrónico
             <input id="registerEmail" type="email" placeholder="nombre@clinica.com" autocomplete="email" required />
-            <small class="auth-field-note">Este correo será el remitente de las felicitaciones y recordatorios enviados a tus pacientes. Usa una cuenta de la clínica a la que tengas acceso.</small>
+            <small class="auth-field-note">Usarás este correo para iniciar sesión. Los envíos de recordatorios se configuran por separado.</small>
           </label>
           <label>
             Contraseña
-            <input id="registerPassword" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required />
+            <input id="registerPassword" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" minlength="6" required />
           </label>
           <label>
             Confirmar contraseña
@@ -96,6 +83,7 @@
           <label class="password-toggle">
             <input id="registerShowPassword" type="checkbox" /> <span>Mostrar contraseña</span>
           </label>
+          <p class="auth-field-note">Puedes añadir el logo, la dirección y el teléfono después, en Ajustes.</p>
           <button class="btn primary auth-submit" type="submit">Crear cuenta <span>→</span></button>
         </form>
       </div>
@@ -158,6 +146,12 @@
     </aside>
 
     <main class="main">
+      <div id="clinicSetupNotice" class="pilot-banner hidden" role="status">
+        <strong>Completa los datos de tu clínica</strong>
+        <small>Añade el logo, la dirección y el teléfono en Ajustes cuando estés listo.</small>
+        <button id="clinicSetupOpen" class="btn light" type="button">Ir a Ajustes</button>
+        <button id="clinicSetupLater" class="btn light" type="button">Más tarde</button>
+      </div>
       <div class="pilot-banner" role="status">
         <span>PRUEBA PILOTO</span>
         <strong>Usa únicamente datos ficticios.</strong>
@@ -1115,6 +1109,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-storage-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="app.js?v=20260912-2"></script>
+  <script src="app.js?v=20260912-3"></script>
 </body>
 </html>
