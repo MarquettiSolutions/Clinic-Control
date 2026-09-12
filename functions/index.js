@@ -11,6 +11,8 @@ const crypto = require("crypto");
 
 initializeApp();
 exports.platformApi = require("./platform").platformApi;
+exports.syncClinicDirectory = require("./directory-events").syncClinicDirectory;
+exports.reconcileClinicDirectory = require("./directory-events").reconcileClinicDirectory;
 
 const db = getFirestore();
 const TIME_ZONE = "America/Chicago";

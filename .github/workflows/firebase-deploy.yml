@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "functions/**"
+      - "scripts/sync-platform-directory.cjs"
       - "firestore.rules"
       - "storage.rules"
       - "firebase.json"
@@ -56,3 +57,9 @@ jobs:
 
       - name: Deploy functions, Firestore rules and Storage rules
         run: npx --yes firebase-tools@15.30.0 deploy --project clinic-control-6ff25 --only functions,firestore:rules,storage --non-interactive
+
+      - name: Preview existing clinic directory reconciliation
+        run: node scripts/sync-platform-directory.cjs --project=clinic-control-6ff25
+
+      - name: Reconcile existing clinic directory without changing clinical data
+        run: node scripts/sync-platform-directory.cjs --project=clinic-control-6ff25 --apply

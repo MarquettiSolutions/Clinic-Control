@@ -20,6 +20,7 @@ const db = { doc, collection, runTransaction: async (callback) => {
 } };
 const modules = {
   './platform': {},
+  './directory-events': {},
   'firebase-functions/v2/scheduler': { onSchedule: () => {} },
   'firebase-functions/v2/https': { onRequest: (_, handler) => handler },
   'firebase-functions': { logger: { warn() {}, error() {} } },

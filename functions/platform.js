@@ -2,6 +2,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { createDirectorySync } = require("./directory-sync");
 
 // Billing is intentionally gated off. Enabling it requires a separately tested
 // Stripe integration, verified webhooks and an approved production hostname.
@@ -109,14 +110,8 @@ exports.platformApi = onRequest({ region: "us-central1", cors: false, invoker: "
     const profile = user.uid === clinicId ? null : (await db.doc(`userProfiles/${user.uid}`).get()).data();
     if (user.uid !== clinicId && !(profile?.clinicId === clinicId && profile?.status === "active" && profile?.role === "admin")) return res.status(403).json({ error: "clinic-admin-required" });
     if (action === "syncClinic") {
-      const settings = (await db.doc(`clinics/${clinicId}/settings/clinic`).get()).data();
-      if (!settings) return res.status(409).json({ error: "clinic-setup-required" });
-      const owner = await getAuth().getUser(clinicId);
-      const ref = db.collection("platformClinics").doc(clinicId);
-      await db.runTransaction(async tx => {
-        const exists = (await tx.get(ref)).exists;
-        tx.set(ref, { name: String(settings.clinicName || "").slice(0, 160), ownerEmail: owner.email || "", updatedAt: FieldValue.serverTimestamp(), ...(!exists ? { status: "pilot", pilotEndsAt: null, createdAt: FieldValue.serverTimestamp() } : {}) }, { merge: true });
-      });
+      const result = await createDirectorySync({ db, auth: getAuth(), timestamp: () => FieldValue.serverTimestamp() }).syncClinic(clinicId);
+      if (result.outcome === "skipped") return res.status(409).json({ error: "clinic-setup-required" });
       return res.json({ synced: true });
     }
     if (["subscription", "checkout", "billingPortal"].includes(action)) {

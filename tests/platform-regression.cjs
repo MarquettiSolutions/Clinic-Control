@@ -12,6 +12,7 @@ function ref(path){return {id:path.split('/').pop(),path,get:async()=>({exists:r
 function collection(path){return {doc:(id='audit')=>ref(`${path}/${id}`),orderBy:()=>({limit:()=>({get:async()=>{const found=path.endsWith('/history')?[...records.entries()].filter(([key])=>key.startsWith(path+'/')).map(([key,value])=>({id:key.split('/').pop(),data:()=>value})):docs;return {size:found.length,docs:found}},startAfter:()=>({get:async()=>({size:0,docs:[]})})})})};}
 const db={doc:ref,collection,runTransaction:async fn=>fn({get:r=>r.get(),set:(r,data,options)=>records.set(r.path,options?.merge?{...records.get(r.path),...data}:data),update:(r,data)=>records.set(r.path,{...records.get(r.path),...data}),create:(r,data)=>records.set(r.path,data)})};
 const modules={
+  './directory-sync':require('../functions/directory-sync'),
   'firebase-functions/v2/https':{onRequest:(_,fn)=>fn},
   'firebase-admin/auth':{getAuth:()=>({verifyIdToken:async token=>{if(token==='bad')throw Error();return {uid:token==='owner'?'platform-owner':token,platformAdmin:token==='owner'}},getUser:async()=>({email:'owner@example.test'})})},
   'firebase-admin/firestore':{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>null}}
@@ -79,5 +80,6 @@ async function request(token,body,origin='https://marquettisolutions.github.io',
  assert.ok(!/<dialog|http-equiv="refresh"|src="app.js|firebase-firestore/.test(adminHtml),'Owner page must not load or redirect to clinic workspace');
  new vm.Script(fs.readFileSync('admin.js','utf8'));
  await require('./admin-entry-regression.cjs')();
+ await require('./directory-sync-regression.cjs')();
  console.log('Platform checks passed: authentication, trusted owner claim, cross-clinic isolation, metadata-only directory, audit, and disabled billing.');
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -69,7 +69,9 @@
     try { ownerAccess = (await user.getIdTokenResult()).claims.platformAdmin === true; }
     catch { /* Deny access when claims cannot be verified. */ }
     document.querySelectorAll("[data-owner-only]").forEach(node => node.hidden = !ownerAccess);
-    if (currentAccess.role === "admin") await api("syncClinic").catch(() => {});
+    if (currentAccess.role === "admin") await api("syncClinic").catch(() => {
+      toast(tr("No se pudo actualizar el directorio de clínicas. Tus datos se conservaron; la sincronización automática volverá a intentarlo.", "The clinic directory could not be updated. Your data is unchanged; automatic synchronization will try again."));
+    });
     if (location.hash === "#platform") location.replace("./admin.html");
   }
   function installMenu() {

@@ -15,7 +15,7 @@
 - Local editorial catalog for system copy, form labels, validation, invoices and payment report headings. No online machine-translation service receives patient data.
 - Patient-room interface has a separate language preference and preserves entered responses and the drawn signature when switching.
 - A metadata-only platform directory for a trusted owner: practice name, owner email, pilot status and tracking end date. Updates are audited.
-- Practice administrators sync their business profile to this directory when signing in. Existing practices are not bulk-imported or deleted.
+- Existing clinics are reconciled from `clinics/*/settings/clinic`, including missing parent documents, during backend deployment. A Firestore trigger synchronizes new/updated clinic settings automatically and a daily reconciliation retries missing entries and refreshes owner emails. Sign-in synchronization remains a fallback, with a visible error if it fails. Only name/email metadata is synchronized; owner notes, pilot dates/statuses, and clinical records are preserved. Deleted settings never delete an existing directory entry.
 - Subscription screen is separate from patient payments. Checkout is deliberately disabled on both client and server. No trial automatically converts to paid.
 
 ## Activate the platform owner
