@@ -1701,29 +1701,7 @@ td small {
 .pilot-banner > span { padding:5px 8px; border-radius:8px; color:#fff; background:#b45309; font-size:10px; font-weight:900; letter-spacing:.08em; }
 .pilot-banner strong { font-size:13px; }
 .pilot-banner small { color:#92400e; }
-.pilot-validation-card { margin:18px 0; }
-.pilot-kicker { display:block; margin-bottom:5px; color:var(--primary); font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
-.pilot-progress { display:grid; min-width:96px; padding:10px 14px; border-radius:14px; text-align:center; color:#0f766e; background:#f0fdfa; }
-.pilot-progress strong { font-size:24px; line-height:1; }
-.pilot-progress span { margin-top:4px; font-size:11px; font-weight:800; }
-.pilot-validation-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:18px; }
-.pilot-check { display:grid; grid-template-rows:auto auto 1fr auto; gap:8px; min-height:205px; padding:16px; border:1px solid var(--line); border-radius:15px; background:#fff; }
-.pilot-check.is-complete { border-color:#5eead4; background:#f0fdfa; }
-.pilot-check-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
-.pilot-check-number { display:grid; place-items:center; width:28px; height:28px; border-radius:9px; color:#0f766e; background:#ccfbf1; font-weight:900; }
-.pilot-check-status { color:var(--muted); font-size:11px; font-weight:850; }
-.pilot-check.is-complete .pilot-check-status { color:#047857; }
-.pilot-check h4,.pilot-check p { margin:0; }
-.pilot-check h4 { font-size:14px; }
-.pilot-check p { color:var(--muted); font-size:12px; line-height:1.45; }
-.pilot-check-metric { align-self:end; color:#334155; font-size:12px; font-weight:800; }
-.pilot-check-actions { display:flex; gap:7px; }
-.pilot-check-actions button { flex:1; min-height:36px; }
-.pilot-approve { border:1px solid #cbd5e1; border-radius:9px; color:#334155; background:#fff; font-weight:850; cursor:pointer; }
-.pilot-check.is-complete .pilot-approve { border-color:#0f766e; color:#fff; background:#0f766e; }
-.pilot-validation-footer { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); color:var(--muted); }
-@media (max-width:1200px) { .pilot-validation-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:720px) { .pilot-banner { align-items:flex-start; flex-wrap:wrap; } .pilot-banner small { flex-basis:100%; } .pilot-validation-grid { grid-template-columns:1fr; } .pilot-validation-footer { align-items:stretch; flex-direction:column; } }
+@media (max-width:720px) { .pilot-banner { align-items:flex-start; flex-wrap:wrap; } .pilot-banner small { flex-basis:100%; } }
 .patient-banner-alert div { display: grid; gap: 2px; }
 .patient-banner-alert small { color: #9a3412; }
 .patient-banner-alert button { border: 0; background: transparent; color: #9a3412; font-weight: 850; cursor: pointer; }

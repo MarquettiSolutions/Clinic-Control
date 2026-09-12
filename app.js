@@ -892,54 +892,8 @@ function renderDashboard() {
   renderTimeline();
   renderMiniDebts();
   renderFinanceBars(allTotals);
-  renderPilotValidation();
 }
 
-const pilotChecks = [
-  { id: "reception", title: "Recepción", page: "patients", action: "Probar pacientes", description: "Registrar un paciente ficticio, buscarlo y abrir su expediente." },
-  { id: "agenda", title: "Agenda y rooms", page: "appointments", action: "Probar agenda", description: "Crear una cita, confirmar llegada y asignar el paciente a un room." },
-  { id: "consultation", title: "Consulta", page: "visits", action: "Probar consulta", description: "Registrar la atención y comprobar que quede en el expediente." },
-  { id: "accounting", title: "Pagos", page: "billing", action: "Probar pagos", description: "Registrar un pago y confirmar fecha, factura y balance del paciente." },
-  { id: "alerts", title: "Alertas", page: "tasks", action: "Probar alertas", description: "Crear un pendiente y verificar que resalte en la ficha y en Tareas." }
-];
-
-function pilotValidationState() { return state.settings.pilotValidation || {}; }
-function pilotMetric(id) {
-  if (id === "reception") return S`${state.patients.length} paciente(s) disponibles`;
-  if (id === "agenda") return S`${state.appointments.length} cita(s) · ${state.rooms.filter((room) => room.patientId).length} room(s) ocupado(s)`;
-  if (id === "consultation") return S`${state.visits.length} consulta(s) registradas`;
-  if (id === "accounting") return S`${money(totals().paid)} cobrado · ${money(totals().debt)} pendiente`;
-  const pending = state.tasks.filter((task) => task.status !== "completed").length;
-  const alerts = state.patients.filter(patientHasAlert).length;
-  return S`${alerts} pin(es) · ${pending} tarea(s) pendiente(s)`;
-}
-
-function renderPilotValidation() {
-  const grid = $("#pilotValidationGrid"); if (!grid) return;
-  const validation = pilotValidationState();
-  const completed = pilotChecks.filter((check) => validation[check.id]?.passed).length;
-  $("#pilotProgressCount").textContent = S`${completed}/5`;
-  grid.innerHTML = pilotChecks.map((check, index) => {
-    const passed = Boolean(validation[check.id]?.passed);
-    return H`<article class="pilot-check ${passed ? "is-complete" : ""}"><div class="pilot-check-head"><span class="pilot-check-number">${index + 1}</span><span class="pilot-check-status">${passed ? T("✓ APROBADA") : T("PENDIENTE")}</span></div><h4>${T(check.title)}</h4><p>${T(check.description)}</p><span class="pilot-check-metric">${pilotMetric(check.id)}</span><div class="pilot-check-actions"><button type="button" class="btn light" onclick="showPage('${check.page}')">${T(check.action)}</button><button type="button" class="pilot-approve" onclick="togglePilotCheck('${check.id}')">${passed ? T("Desmarcar") : T("Sí funciona")}</button></div></article>`;
-  }).join("");
-  const dates = pilotChecks.map((check) => validation[check.id]?.validatedAt).filter(Boolean).sort();
-  $("#pilotLastValidated").textContent = completed === 5 ? S`Piloto aprobado · última validación ${fmtDate(dates.at(-1))}` : S`${completed} de 5 flujos aprobados con datos ficticios.`;
-}
-
-async function togglePilotCheck(id) {
-  if (!pilotChecks.some((check) => check.id === id)) return;
-  const current = pilotValidationState(); const passed = !current[id]?.passed;
-  const pilotValidation = { ...current, [id]: { passed, validatedAt: passed ? new Date().toISOString() : "", validatedBy: auth.currentUser.uid } };
-  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = pilotValidation; renderPilotValidation(); toast(passed ? T("Flujo aprobado para el piloto.") : T("Prueba marcada como pendiente.")); }
-  catch (error) { console.error(error); toast(T("No se pudo guardar la validación.")); }
-}
-
-async function resetPilotValidation() {
-  if (!confirm(T("¿Reiniciar las cinco pruebas del piloto? No se eliminarán pacientes ni operaciones."))) return;
-  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation: {}, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = {}; renderPilotValidation(); toast(T("Validación del piloto reiniciada.")); }
-  catch (error) { console.error(error); toast(T("No se pudo reiniciar la validación.")); }
-}
 
 function renderTimeline() {
   const visits = [...state.visits].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
@@ -3056,7 +3010,6 @@ $$("[data-auth-tab]").forEach((button) => {
 });
 
 $("#quickPatientBtn").addEventListener("click", () => openPatientDialog());
-$("#pilotResetBtn").addEventListener("click", resetPilotValidation);
 $("#dashNewPatient").addEventListener("click", () => openPatientDialog());
 $("#patientCreateBtn").addEventListener("click", () => openPatientDialog());
 $("#appointmentCreateBtn").addEventListener("click", () => openAppointmentDialog());
