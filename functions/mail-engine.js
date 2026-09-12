@@ -14,7 +14,7 @@ function reminderStage(date, now) {
   return "3d";
 }
 
-function createMailer({ db, auth, transport, sender, now = () => new Date(), timestamp, dryRun = false }) {
+function createMailer({ db, auth, transport, sender, now = () => new Date(), timestamp, dryRun = false, runner = "firebase" }) {
   const report = { sent: 0, skipped: 0, failed: 0, preview: 0 };
   async function send({ id, to, subject, text, replyTo, legacyIds = [] }) {
     if (typeof to !== "string" || to.length > 320 || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to)) { report.skipped++; return; }
@@ -91,7 +91,7 @@ function createMailer({ db, auth, transport, sender, now = () => new Date(), tim
     if (!dryRun) {
       const unresolved = await db.collection("emailLogs").where("status", "in", ["sending", "needs_review"]).limit(100).get();
       report.needsReview = unresolved.size;
-      await db.doc("platformOperations/email").set({ ...report, lastRunAt: timestamp(), status: report.needsReview ? "needs_review" : "ok" });
+      await db.doc("platformOperations/email").set({ ...report, runner, lastRunAt: timestamp(), status: report.needsReview ? "needs_review" : "ok" });
     }
     return report;
   }

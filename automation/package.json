@@ -4,6 +4,6 @@
   "main": "send-emails.js",
   "dependencies": {
     "firebase-admin": "^14.1.0",
-    "nodemailer": "^7.0.0"
+    "nodemailer": "^10.0.9"
   }
 }

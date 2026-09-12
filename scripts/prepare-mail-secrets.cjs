@@ -9,6 +9,10 @@ for (const name of ["GMAIL_USER", "GMAIL_APP_PASSWORD"]) {
   const value = process.env[name];
   if (!value) throw new Error(`${name}: missing GitHub secret`);
   const result = spawnSync("npx", [...base, "functions:secrets:set", name, "--data-file=-", ...project], { input: value, encoding: "utf8" });
-  if (result.status !== 0) throw new Error(`${name}: provisioning failed; check Secret Manager permissions (no credentials logged)`);
+  if (result.status !== 0) {
+    const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+    const classification = /403|PERMISSION_DENIED|permission|denied/i.test(output) ? "permission-denied" : /ENOENT/i.test(output) ? "invalid-input-file" : /API.*enabled|enable.*API/i.test(output) ? "api-not-enabled" : "cli-error";
+    throw new Error(`${name}: provisioning failed (${classification}); credentials not logged`);
+  }
   console.log(`${name}: provisioned securely`);
 }

@@ -63,7 +63,7 @@ For a read-only local preview: `node scripts/preview.cjs`, then open `http://127
 Reference documentation: [Firebase custom claims](https://firebase.google.com/docs/auth/admin/custom-claims), [Stripe Checkout](https://docs.stripe.com/payments/checkout/build-subscriptions), [Stripe subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks).
 # Email automation (September 2026)
 
-Firebase `sendBirthdayEmails` now owns birthday, appointment and administrative pilot-date mail, on a 15-minute Cloud Scheduler cadence (America/Chicago). The historical function name is retained to update the existing job; it no longer writes birthday mail into the unused `mail` queue. GitHub email automation is manual, dry-run diagnostics only.
+Firebase `sendBirthdayEmails` is intended to own birthday, appointment and administrative pilot-date mail, on a 15-minute Cloud Scheduler cadence (America/Chicago). The historical function name is retained to update the existing job; it no longer writes birthday mail into the unused `mail` queue. GitHub remains an hourly backup using the same transactional delivery IDs, and skips email when Firebase's last successful run is less than 45 minutes old. GitHub's schedule can be delayed. The optional existing Twilio SMS process remains in the backup workflow and is not enabled by this change. Manual dry runs send neither email nor SMS.
 
 SMTP credentials are copied from the existing GitHub secrets into Secret Manager by the trusted deploy workflow, never into public source or logs. Gmail is the authenticated sender; clinic email is Reply-To, not an unverified From address. No SMTP acceptance is presented as proof of inbox delivery.
 
