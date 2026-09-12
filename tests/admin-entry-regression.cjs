@@ -1,0 +1,38 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+module.exports=async function(){
+  const elements=new Map(), events={}, calls=[], renders=[];
+  function element(id){if(!elements.has(id))elements.set(id,{hidden:false,textContent:'',innerHTML:'',disabled:false,dataset:{},elements:{email:{value:''},password:{value:''}},setAttribute(){},replaceChildren(){this.innerHTML=''},addEventListener(type,fn){events[id+':'+type]=fn},querySelector(selector){return element(id+':'+selector)}});return elements.get(id)}
+  let listener, responseStatus=200, delayed=null;
+  const auth={currentUser:null,setPersistence:async value=>calls.push(['persistence',value]),onAuthStateChanged(fn){listener=fn},signInWithEmailAndPassword:async()=>{throw {code:'auth/invalid-credential'}},signOut:async()=>{auth.currentUser=null;await listener(null)}};
+  const dashboard={show(...args){renders.push(args)},clear(){calls.push(['clear'])},relocalize(){}};
+  const context=vm.createContext({window:{firebaseConfig:{},CLINIC_COMMERCE:{apiUrl:'https://example.invalid/api'},ClinicOwnerDashboard:dashboard},localStorage:{getItem:()=>null,setItem(){}},document:{documentElement:{},getElementById:element,querySelectorAll:()=>[],addEventListener(){}},firebase:{initializeApp(config,name){calls.push(['app',name]);return {auth:()=>auth}},auth:{Auth:{Persistence:{SESSION:'session'}}}},fetch:async(url,options)=>{calls.push(['fetch',JSON.parse(options.body)]);if(delayed)await delayed;return {ok:responseStatus===200,status:responseStatus,json:async()=>responseStatus===200?{clinics:[],nextCursor:null}:{error:'platform-access-required'}}},console});
+  vm.runInContext(fs.readFileSync('admin.js','utf8'),context);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(calls.some(c=>c[0]==='app'&&c[1]==='clinic-owner-console'));
+  assert.ok(calls.some(c=>c[0]==='persistence'&&c[1]==='session'));
+  await listener(null);
+  assert.equal(element('adminLoginForm').hidden,false);
+  assert.equal(element('platformDialog').hidden,true);
+  const user=owner=>({getIdTokenResult:async()=>({claims:{platformAdmin:owner}}),getIdToken:async()=>'test-token'});
+  auth.currentUser=user(false);await listener(auth.currentUser);
+  assert.equal(calls.filter(c=>c[0]==='fetch').length,0,'Clinic users cannot load the owner directory');
+  assert.equal(element('platformDialog').hidden,true);
+  assert.match(element('adminAuthNotice').textContent,/does not have owner access/);
+  auth.currentUser=user(true);await listener(auth.currentUser);
+  assert.equal(element('adminLogin').hidden,true);
+  assert.equal(element('platformDialog').hidden,false);
+  assert.equal(renders.length,1);
+  await auth.signOut();assert.equal(element('platformDialog').hidden,true);assert.equal(element('platformDialog').innerHTML,'');
+  responseStatus=403;auth.currentUser=user(true);await listener(auth.currentUser);
+  assert.equal(element('platformDialog').hidden,true,'A server denial must hide the workspace');
+  responseStatus=200;let resolveFetch;delayed=new Promise(resolve=>resolveFetch=resolve);
+  auth.currentUser=user(true);const pending=listener(auth.currentUser);await new Promise(resolve=>setImmediate(resolve));
+  await auth.signOut();resolveFetch();await pending;
+  assert.equal(renders.length,1,'A late response cannot reopen a signed-out workspace');
+  element('adminLoginForm').elements.email.value='owner@example.invalid';
+  await events['adminLoginForm:submit']({preventDefault(){}});
+  assert.match(element('adminAuthNotice').textContent,/Sign-in failed/);
+  console.log('Standalone admin checks passed: separate session, owner-only access, server denial, logout and late-response protection.');
+};

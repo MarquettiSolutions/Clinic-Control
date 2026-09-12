@@ -34,7 +34,7 @@ jobs:
       - name: Prepare public website
         run: |
           mkdir -p _site
-          cp index.html admin.html owner-dashboard.js app.js styles.css firebase-config.js patient.html patient.js patient.css commerce.js commerce.css commerce-config.js i18n.js i18n-catalog.js _site/
+          cp index.html admin.html admin.js admin.css owner-dashboard.js app.js styles.css firebase-config.js patient.html patient.js patient.css commerce.js commerce.css commerce-config.js i18n.js i18n-catalog.js _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

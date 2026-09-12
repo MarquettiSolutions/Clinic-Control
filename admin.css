@@ -1,0 +1,28 @@
+* { box-sizing:border-box; }
+[hidden] { display:none!important; }
+body.admin-page { margin:0; background:#f4f7fb; color:#173047; font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.admin-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:20px 32px; background:#0c2131; color:#fff; flex-wrap:wrap; }
+.admin-brand { color:#fff; text-decoration:none; font-weight:800; font-size:21px; }
+.admin-brand span { display:block; font-size:12px; color:#a9d6d0; font-weight:500; }
+.admin-header-actions { display:flex; gap:12px; flex-wrap:wrap; }
+.admin-header-actions button { background:transparent; color:#fff; border:1px solid #446173; border-radius:8px; padding:9px 12px; cursor:pointer; }
+.admin-login { max-width:520px; margin:70px auto; padding:0 20px; }
+.admin-login section { background:#fff; border:1px solid #dbe5ec; border-radius:20px; padding:36px; box-shadow:0 12px 40px #1730470a; }
+.admin-login h1 { font-size:30px; line-height:1.2; margin:12px 0; }
+.admin-eyebrow { font-size:11px; font-weight:800; letter-spacing:1px; color:#0f766e; }
+.admin-login form { display:grid; gap:18px; margin:24px 0; }
+.admin-login label { display:grid; gap:7px; font-weight:600; }
+.admin-login input { width:100%; border:1px solid #a8becf; padding:12px; border-radius:8px; font:inherit; }
+.admin-login-help { color:#526477; font-size:13px; }
+.admin-page a { color:#0f766e; }
+.admin-page .admin-brand { color:#fff; }
+.admin-page .btn { display:inline-block; font:600 14px/1.4 system-ui,sans-serif; border-radius:9px; padding:12px 16px; cursor:pointer; border:1px solid #c8d7e3; text-align:center; text-decoration:none; background:#fff; color:#173047; }
+.admin-page .btn.primary { background:#0f766e; border-color:#0f766e; color:#fff; }
+.admin-page button:disabled { opacity:.55; cursor:wait; }
+.admin-page :focus-visible { outline:3px solid #14b8a6; outline-offset:3px; }
+.admin-workspace { width:100%; min-height:calc(100vh - 100px); }
+.admin-workspace .platform-header { position:static; background:transparent; border:0; max-width:1344px; margin:auto; padding:28px 32px 0; }
+.admin-workspace .platform-content { max-width:1344px; margin:auto; padding:20px 32px 48px; }
+.admin-workspace .owner-topline [data-language] { display:none; }
+.admin-workspace [data-platform-notice]:not([hidden]) { padding:16px; border:1px solid #a5d7ce; border-radius:10px; background:#eaf7f3; position:sticky; bottom:12px; }
+@media(max-width:640px) { .admin-header { padding:16px; } .admin-login { margin:32px auto; } .admin-login section { padding:24px; } .admin-workspace .platform-header,.admin-workspace .platform-content { padding:20px 16px; } }

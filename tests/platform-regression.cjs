@@ -74,6 +74,10 @@ async function request(token,body,origin='https://marquettisolutions.github.io',
  assert.equal((await request('owner',{action:'saveOwnerNote',clinicId:'clinic',note:'x'.repeat(2001),requestId:'note-000000000002'})).statusCode,400);
  assert.equal(records.get('clinics/clinic/settings/clinic').clinicName,'Fictional Clinic');
  new vm.Script(fs.readFileSync('owner-dashboard.js','utf8'));
- assert.ok(fs.readFileSync('admin.html','utf8').includes('./index.html#platform'));
+ const adminHtml=fs.readFileSync('admin.html','utf8');
+ assert.ok(adminHtml.includes('adminLoginForm'));
+ assert.ok(!/<dialog|http-equiv="refresh"|src="app.js|firebase-firestore/.test(adminHtml),'Owner page must not load or redirect to clinic workspace');
+ new vm.Script(fs.readFileSync('admin.js','utf8'));
+ await require('./admin-entry-regression.cjs')();
  console.log('Platform checks passed: authentication, trusted owner claim, cross-clinic isolation, metadata-only directory, audit, and disabled billing.');
 })().catch(error=>{console.error(error);process.exitCode=1});

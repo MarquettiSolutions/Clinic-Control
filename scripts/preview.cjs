@@ -2,7 +2,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const publicFiles = new Set(['admin.html','owner-dashboard.js','index.html','app.js','styles.css','firebase-config.js','patient.html','patient.js','patient.css','commerce.js','commerce.css','commerce-config.js','i18n.js','i18n-catalog.js']);
+const publicFiles = new Set(['admin.js','admin.css','admin.html','owner-dashboard.js','index.html','app.js','styles.css','firebase-config.js','patient.html','patient.js','patient.css','commerce.js','commerce.css','commerce-config.js','i18n.js','i18n-catalog.js']);
 const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8' };
 http.createServer((req,res) => {
   const file = new URL(req.url,'http://localhost').pathname.slice(1) || 'index.html';

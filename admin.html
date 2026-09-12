@@ -1,3 +1,18 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Clinic Control | Owner dashboard</title><meta http-equiv="refresh" content="0;url=./index.html#platform"></head>
-<body><p><a href="./index.html#platform">Open owner dashboard / Abrir panel del dueño</a></p></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+  <title>Clinic Control | Owner administration</title>
+  <link rel="stylesheet" href="commerce.css?v=20260912-4"><link rel="stylesheet" href="admin.css?v=20260912-1">
+</head>
+<body class="admin-page">
+  <header class="admin-header"><a class="admin-brand" href="./admin.html">Clinic Control <span data-copy="brand">Owner administration</span></a><div class="admin-header-actions"><button data-admin-language="en" lang="en">English</button><button data-admin-language="es" lang="es">Español</button><button id="adminSignOut" hidden data-copy="signOut">Sign out</button></div></header>
+  <main id="adminLogin" class="admin-login"><section><p class="admin-eyebrow" data-copy="private">PRIVATE OWNER ACCESS</p><h1 data-copy="title">Manage your platform</h1><p data-copy="intro">Manage clinics, pilot periods and business activity. This is not the clinic workspace.</p>
+    <form id="adminLoginForm" hidden><label><span data-copy="email">Email address</span><input name="email" type="email" autocomplete="username" required></label><label><span data-copy="password">Password</span><input name="password" type="password" autocomplete="current-password" required></label><button class="btn primary" type="submit" data-copy="signIn">Sign in to administration</button></form>
+    <p id="adminAuthNotice" role="status" aria-live="polite">Checking your session…</p><p class="admin-login-help" data-copy="help">Use your authorized owner account. Clinic accounts cannot access this area.</p><a href="./index.html" data-copy="website">Back to the public website</a>
+  </section></main>
+  <main id="platformDialog" class="owner-console admin-workspace" hidden aria-label="Owner administration"></main>
+  <noscript>JavaScript is required / Se requiere JavaScript.</noscript>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+  <script src="firebase-config.js"></script><script src="commerce-config.js?v=20260912-1"></script><script src="owner-dashboard.js?v=20260912-1"></script><script src="admin.js?v=20260912-1"></script>
+</body></html>
