@@ -23,7 +23,7 @@
       ["Pagos y reportes", "Payments & reporting", "Registra cobros y consulta balances con claridad.", "Record payments and get a clear view of outstanding balances."]
     ].map(([es,en,descEs,descEn]) => `<article><h3>${tr(es,en)}</h3><p>${tr(descEs,descEn)}</p></article>`).join("")}</div></section>
     <section class="commercial-section commercial-pilot"><div><h2>${tr("Pruébalo con tu equipo", "Try it with your team")}</h2><p>${tr("Esta versión está en validación. Usa datos ficticios; no cargues información clínica real hasta completar la revisión de seguridad y privacidad.", "This version is being validated. Use fictional data; do not upload real patient information before the security and privacy review is complete.")}</p></div><button class="btn primary" data-login="register">${tr("Crear cuenta de prueba", "Create a pilot account")}</button></section>
-    <footer class="commercial-footer"><span>© ${new Date().getFullYear()} Clinic Control · ${tr("Versión piloto", "Pilot release")}</span><button data-platform="subscription">${tr("Planes y suscripción", "Plans & subscription")}</button><button data-platform="owner">${tr("Administración de plataforma", "Platform administration")}</button></footer>`;
+    <footer class="commercial-footer"><div class="commercial-footer-meta"><span>© ${new Date().getFullYear()} Clinic Control · ${tr("Versión piloto", "Pilot release")}</span><a class="commercial-admin-link" href="./admin.html">${tr("Administración", "Administration")}</a></div><button data-platform="subscription">${tr("Planes y suscripción", "Plans & subscription")}</button></footer>`;
   }
 
   function notice(message) {

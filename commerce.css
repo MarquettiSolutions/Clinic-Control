@@ -26,6 +26,10 @@
 .commercial-pilot { display:flex; align-items:center; gap:30px; }
 .commercial-pilot>div { flex:1; }
 .commercial-footer { color:#a9bfce; border-top:1px solid #294457; font-size:13px; }
+.commercial-footer-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px 18px; }
+.commercial-admin-link { color:#a9bfce; font-size:12px; line-height:1.5; padding:6px 0; text-decoration:none; }
+.commercial-admin-link:hover { color:#5eead4; text-decoration:underline; }
+.commercial-admin-link:focus-visible { outline:2px solid #5eead4; outline-offset:4px; border-radius:2px; }
 .app-language-switch { position:fixed; right:16px; top:6px; z-index:110; background:#fff; color:#173047; box-shadow:0 2px 12px #0002; border-radius:12px; font:12px system-ui; }
 .app-language-switch a { color:#0f766e; padding:8px; text-decoration:none; }
 .marketing-mode .app-language-switch { display:none; }
