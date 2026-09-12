@@ -2,6 +2,14 @@
 
 Aplicación web para gestionar pacientes, consultas, cobros y reportes de una clínica.
 
+Sitio publicado: https://marquettisolutions.github.io/Clinic-Control/
+
+Repositorio: https://github.com/MarquettiSolutions/Clinic-Control
+
+El Portal de Room está en `patient.html`. Genera su código temporal desde
+**Rooms → Usar iPad**. Los enlaces vencen en 30 minutos y dejan de funcionar
+al reemplazar el acceso o cambiar el paciente asignado.
+
 ## Qué incluye
 
 - Dashboard moderno
@@ -67,18 +75,9 @@ La prueba de reglas se ejecuta con:
 npm run test:rules
 ```
 
-Para pruebas rápidas aisladas, nunca en un entorno con datos reales, podrías usar estas reglas abiertas:
-
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}
-```
+Las pruebas usan datos aislados; no es necesario abrir las reglas ni modificar
+los pacientes existentes. `npm test` incluye regresiones del Portal de Room
+(sesiones vencidas, dobles envíos, cambios de paciente y fallos de conexión).
 
 ## Correos automáticos gratuitos
 
@@ -135,4 +134,4 @@ En GitHub abre **Actions > Correos automáticos > Run workflow** y deja activada
 
 ### 5. Enviar una prueba real
 
-Crea un paciente de prueba con tu correo, autoriza felicitaciones y configura una cita `Programada` para aproximadamente 24 horas después. Ejecuta nuevamente el workflow desactivando **Solo comprobar**.
+Crea un paciente de prueba con tu correo, autoriza las notificaciones y configura una cita `Programada` para aproximadamente 3 horas después. Ejecuta nuevamente el workflow desactivando **Solo comprobar** únicamente cuando quieras enviar mensajes reales.

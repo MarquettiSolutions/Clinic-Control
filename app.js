@@ -438,34 +438,6 @@ function applyRoleAccess() {
   if (settingsForm) settingsForm.classList.toggle("read-only-role", currentAccess.role !== "admin");
 }
 
-async function removeLegacyDemoData(settingsDoc, patientsSnap, visitsSnap) {
-  const demoPatients = new Map([
-    ["P-1001", "Oscar Arrate Fernandez"],
-    ["P-1002", "Maria Perez"],
-    ["P-1003", "Pedro Perez Garcia"]
-  ]);
-  const demoPatientDocs = patientsSnap.docs.filter((doc) => {
-    const data = doc.data();
-    return demoPatients.get(data.document) === data.name;
-  });
-  const demoPatientIds = new Set(demoPatientDocs.map((doc) => doc.id));
-  const demoVisitDocs = visitsSnap.docs.filter((doc) => demoPatientIds.has(doc.data().patientId));
-  const settings = settingsDoc.exists ? settingsDoc.data() : {};
-  const hasDemoSettings = settings.clinicName === "Clinic Control"
-    && settings.clinicAddress === "Dirección de la clínica"
-    && settings.clinicPhone === "(000) 000-0000"
-    && settings.clinicEmail === "admin@clinic.com";
-
-  if (!demoPatientDocs.length && !demoVisitDocs.length && !hasDemoSettings) return false;
-
-  const batch = firestore.batch();
-  demoPatientDocs.forEach((doc) => batch.delete(doc.ref));
-  demoVisitDocs.forEach((doc) => batch.delete(doc.ref));
-  if (hasDemoSettings) batch.delete(settingsDoc.ref);
-  await batch.commit();
-  return true;
-}
-
 async function loadClinicData() {
   await ensureAuth();
 
@@ -479,13 +451,6 @@ async function loadClinicData() {
     patientsRef.get(),
     canReadVisits ? visitsRef.get() : Promise.resolve({ empty: true, docs: [] })
   ]);
-
-  if (currentAccess.role === "admin" && await removeLegacyDemoData(settingsDoc, patientsSnap, visitsSnap)) {
-    state = buildSeedState();
-    subscribeToRealtime();
-    render();
-    return;
-  }
 
   if (!settingsDoc.exists && patientsSnap.empty && visitsSnap.empty) {
     state = buildSeedState();
@@ -1405,14 +1370,14 @@ function renderRoomAppointmentChoices() {
 
 async function assignRoomFromDialog() {
   const room = roomById($("#roomAssignId").value); if (!room) return; const patientId = $("#roomAssignPatient").value; const appointmentId = $("#roomAssignAppointment").value; const status = $("#roomAssignStatus").value; const doctor = $("#roomAssignDoctor").value.trim();
-  const data = { ...room, patientId, appointmentId, doctor, status, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; await getCollectionRef("rooms").doc(room.id).set(data, { merge: true });
+  const data = { ...room, patientId, appointmentId, doctor, status, portalActive: false, portalSessionKey: null, portalExpiresAt: null, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; await getCollectionRef("rooms").doc(room.id).set(data, { merge: true });
   if (appointmentId) await getCollectionRef("appointments").doc(appointmentId).set({ roomId: room.id, roomName: room.name, status: status === "waiting" ? "arrived" : "confirmed", updatedAt: new Date().toISOString() }, { merge: true });
   recordActivity({ action: "assigned", entityType: "room", entityId: room.id, patientId, title: "Paciente asignado a room", detail: `${room.name} · ${roomStatus(status).label}` }).catch(console.error); $("#roomAssignDialog").close(); toast(`Paciente asignado a ${room.name}.`);
 }
 
 async function updateRoomStatus(id, status) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "status", entityType: "room", entityId: id, patientId: room.patientId || "", title: `Room: ${roomStatus(status).label}`, detail: room.name }).catch(console.error); }
 function advanceRoomStatus(id) { const room = roomById(id); if (!room) return; const next = { waiting: "nursing", nursing: "ready", ready: "in_visit", in_visit: "cleaning", preparing: "available" }[room.status] || "cleaning"; updateRoomStatus(id, next).catch((error) => { console.error(error); toast("No se pudo cambiar el estado."); }); }
-async function releaseRoom(id) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status: "available", patientId: "", appointmentId: "", doctor: "", statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); toast(`${room.name} está disponible.`); }
+async function releaseRoom(id) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status: "available", patientId: "", appointmentId: "", doctor: "", portalActive: false, portalSessionKey: null, portalExpiresAt: null, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); toast(`${room.name} está disponible.`); }
 
 function openIpadLaunch(id) {
   const room = roomById(id); const p = patient(room?.patientId); if (!room || !p) return toast("Asigna primero un paciente al room.");
@@ -1423,7 +1388,7 @@ function openIpadLaunch(id) {
   $("#ipadRoomId").value = id; $("#ipadLaunchContext").innerHTML = `<div><small>Room</small><strong>${escapeHtml(room.name)}</strong></div><div><small>Paciente</small><strong>${escapeHtml(p.name)}</strong></div>`;
   $("#ipadActivityList").innerHTML = `${pending.length ? `<div class="ipad-activity-group"><strong>Pendientes del paciente</strong>${pending.map((form) => ipadActivityChoice("response", form.id, "☷", form.templateName, "Continuar formulario pendiente", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>Biblioteca de formularios</strong>${state.formTemplates.length ? state.formTemplates.map((template) => ipadActivityChoice("template", template.id, "＋", template.name, `${(template.questions || []).length} pregunta(s)`, false)).join("") : `<small>No hay plantillas digitales.</small>`}</div>${documents.length ? `<div class="ipad-activity-group"><strong>Documentos pendientes</strong>${documents.map((doc) => ipadActivityChoice("document", `${doc.visitId}|${doc.documentId}`, "✍", doc.name, "Asignado y pendiente de firma", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>PDF convertidos para Room</strong>${roomDocuments.length ? roomDocuments.map((doc) => ipadActivityChoice("library-document", doc.id, "PDF", doc.name, `${(doc.fields || []).length ? `${doc.fields.length} campo(s) digitales` : "Revisión y firma"}`, false)).join("") : `<small>No hay otros PDF convertidos disponibles.</small>`}</div>`;
   $("#ipadCreateTemplateBtn").classList.toggle("hidden", currentAccess.role !== "admin");
-  $("#ipadLanguage").value = p.language === "English" ? "en" : "es"; $("#ipadCompletionAction").value = "ready"; $("#ipadQuickQuestion").value = ""; $("#ipadLaunchDialog").showModal();
+  $("#ipadLanguage").value = ["English", "Inglés", "en"].includes(p.language) ? "en" : "es"; $("#ipadCompletionAction").value = "ready"; $("#ipadQuickQuestion").value = ""; $("#ipadLaunchDialog").showModal();
 }
 
 function ipadActivityChoice(kind, id, icon, title, detail, checked) { return `<label class="ipad-activity-choice"><input type="checkbox" data-ipad-kind="${kind}" data-ipad-id="${escapeHtml(id)}" ${checked ? "checked" : ""}/><span>${icon}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div></label>`; }
@@ -3084,7 +3049,25 @@ $("#roomRefreshBtn").addEventListener("click", renderRooms);
 $("#roomAssignPatient").addEventListener("change", renderRoomAppointmentChoices);
 $("#roomForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveRoomFromDialog(); } catch (error) { console.error(error); toast("No se pudo guardar el room."); } });
 $("#roomAssignForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await assignRoomFromDialog(); } catch (error) { console.error(error); toast("No se pudo asignar el room."); } });
-$("#ipadLaunchForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await startPatientKiosk(); } catch (error) { console.error(error); toast(error.message === "no-activities" ? "El documento ya estaba firmado. Cierra esta ventana y vuelve a seleccionarlo para crear una copia nueva." : "No se pudo iniciar la pantalla del paciente."); } });
+$("#ipadLaunchForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (form.dataset.sending === "true") return;
+  form.dataset.sending = "true";
+  const button = form.querySelector('[type="submit"]');
+  if (button) button.disabled = true;
+  try { await startPatientKiosk(); }
+  catch (error) {
+    console.error(error);
+    const messages = {
+      "no-activities": "Las actividades ya fueron completadas. Cierra esta ventana y vuelve a seleccionarlas.",
+      "invalid-room": "El paciente asignado al room cambió. Actualiza Rooms y vuelve a intentar.",
+      "forbidden": "Tu usuario no tiene permiso para abrir este portal.",
+      "unauthenticated": "Tu sesión venció. Vuelve a iniciar sesión."
+    };
+    toast(messages[error.message] || (error instanceof TypeError ? "No se pudo conectar al portal. Revisa internet y vuelve a intentar." : "No se pudo iniciar la pantalla del paciente. Actualiza Rooms e intenta nuevamente."));
+  } finally { form.dataset.sending = "false"; if (button) button.disabled = false; }
+});
 $("#ipadCreateTemplateBtn").addEventListener("click", () => { pendingRoomIpadId = $("#ipadRoomId").value; $("#ipadLaunchDialog").close(); openFormTemplateDialog(); });
 $("#copyPatientPortalBtn").addEventListener("click", async () => { await navigator.clipboard.writeText($("#patientPortalUrl").value); toast("Enlace del Portal de Room copiado."); });
 $("#openPatientPortalBtn").addEventListener("click", () => window.open($("#patientPortalUrl").value, "_blank", "noopener"));

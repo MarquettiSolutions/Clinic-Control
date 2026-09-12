@@ -9,3 +9,7 @@ serviceAccount*.json
 firebase-debug.log
 presentation-build/
 output/
+_site/
+*.db
+*.db-shm
+*.db-wal

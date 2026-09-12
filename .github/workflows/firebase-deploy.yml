@@ -45,6 +45,9 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
+      - name: Check portal regressions
+        run: node tests/portal-regression.cjs
+
 
       - name: Install Functions dependencies
         working-directory: functions

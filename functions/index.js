@@ -96,6 +96,12 @@ async function createCompletedPdf({ source, fields, answers, signatureBytes }) {
   }
   const signatureField = (fields || []).find((field) => field.type === "signature" && field.box); const signature = await pdf.embedPng(signatureBytes);
   if (signatureField) { const signaturePage = pdf.getPages()[Number(signatureField.page || 1) - 1]; if (signaturePage) { const size = signaturePage.getSize(); const box = signatureField.box; const targetWidth = Math.max(90, box.width * size.width); const targetHeight = Math.max(35, box.height * size.height * 2.5); const scale = Math.min(targetWidth / signature.width, targetHeight / signature.height); signaturePage.drawImage(signature, { x: box.x * size.width, y: size.height - (box.y + box.height) * size.height - 4, width: signature.width * scale, height: signature.height * scale }); } }
+  else {
+    const signaturePage = pdf.addPage([612, 300]);
+    signaturePage.drawText("Firma / Signature", { x: 40, y: 250, size: 14, font: bold });
+    const scale = Math.min(500 / signature.width, 180 / signature.height);
+    signaturePage.drawImage(signature, { x: 40, y: 40, width: signature.width * scale, height: signature.height * scale });
+  }
   return Buffer.from(await pdf.save());
 }
 
@@ -222,11 +228,26 @@ async function requireClinicUser(request, clinicId) {
   return decoded;
 }
 
-async function loadPortalSession(code) {
+async function loadPortalSession(code, allowCompleted = false) {
   const ref = db.collection("patientPortalSessions").doc(portalKey(code));
   const snap = await ref.get(); const session = snap.data();
+  if (allowCompleted && session?.status === "completed" && session.expiresAt?.toMillis() > Date.now()) return { ref, session };
   if (!snap.exists || portalExpired(session)) throw new Error("invalid-session");
+  const room = (await db.doc(`clinics/${session.clinicId}/rooms/${session.roomId}`).get()).data();
+  if (!room || room.patientId !== session.patientId || room.portalActive !== true || (room.portalSessionKey && room.portalSessionKey !== ref.id)) throw new Error("invalid-session");
   return { ref, session };
+}
+
+async function advancePortalSession(ref, expectedIndex, write) {
+  return db.runTransaction(async (transaction) => {
+    const current = (await transaction.get(ref)).data();
+    if (portalExpired(current)) throw new Error("invalid-session");
+    if ((current.currentIndex || 0) !== expectedIndex) throw new Error("invalid-activity");
+    const room = (await transaction.get(db.doc(`clinics/${current.clinicId}/rooms/${current.roomId}`))).data();
+    if (!room || !room.portalActive || room.patientId !== current.patientId || (room.portalSessionKey && room.portalSessionKey !== ref.id)) throw new Error("invalid-session");
+    await write(transaction);
+    transaction.update(ref, { currentIndex: expectedIndex + 1, updatedAt: FieldValue.serverTimestamp() });
+  });
 }
 
 exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutSeconds: 120, invoker: "public" }, async (request, response) => {
@@ -237,6 +258,7 @@ exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutS
     const action = request.body?.action;
     if (action === "create") {
       const { clinicId, roomId, patientId, activities = [], language = "es", completionAction = "ready" } = request.body;
+      if (!Array.isArray(activities) || !["ready", "waiting", "nursing"].includes(completionAction)) throw new Error("invalid-activity");
       const user = await requireClinicUser(request, clinicId);
       const [roomSnap, patientSnap] = await Promise.all([db.doc(`clinics/${clinicId}/rooms/${roomId}`).get(), db.doc(`clinics/${clinicId}/patients/${patientId}`).get()]);
       if (!roomSnap.exists || roomSnap.data().patientId !== patientId || !patientSnap.exists) throw new Error("invalid-room");
@@ -253,8 +275,12 @@ exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutS
       }
       if (!safeActivities.length) return response.status(400).json({ error: "no-activities" });
       const code = portalCode(); const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-      await db.collection("patientPortalSessions").doc(portalKey(code)).set({ clinicId, roomId, patientId, activities: safeActivities, language, completionAction, currentIndex: 0, status: "active", createdBy: user.uid, createdAt: FieldValue.serverTimestamp(), expiresAt });
-      await roomSnap.ref.set({ status: roomSnap.data().status === "waiting" ? "nursing" : roomSnap.data().status, portalActive: true, portalExpiresAt: expiresAt, updatedAt: new Date().toISOString() }, { merge: true });
+      await db.runTransaction(async (transaction) => {
+        const room = (await transaction.get(roomSnap.ref)).data();
+        if (!room || room.patientId !== patientId) throw new Error("invalid-room");
+        transaction.set(db.collection("patientPortalSessions").doc(portalKey(code)), { clinicId, roomId, patientId, activities: safeActivities, language, completionAction, currentIndex: 0, status: "active", createdBy: user.uid, createdAt: FieldValue.serverTimestamp(), expiresAt });
+        transaction.update(roomSnap.ref, { status: room.status === "waiting" ? "nursing" : room.status, portalActive: true, portalSessionKey: portalKey(code), portalExpiresAt: expiresAt, updatedAt: new Date().toISOString() });
+      });
       return response.json({ code, expiresAt: expiresAt.toISOString(), portalUrl: `https://marquettisolutions.github.io/Clinic-Control/patient.html?code=${encodeURIComponent(code)}` });
     }
 
@@ -270,7 +296,8 @@ exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutS
       return response.json({ fields, roomReady: true });
     }
 
-    const { ref, session } = await loadPortalSession(request.body?.code);
+    const { ref, session } = await loadPortalSession(request.body?.code, action === "complete");
+    if (action === "complete" && session.status === "completed") return response.json({ ok: true });
     const clinic = db.collection("clinics").doc(session.clinicId);
     if (action === "get") {
       const [patientSnap, settingsSnap, roomSnap] = await Promise.all([clinic.collection("patients").doc(session.patientId).get(), clinic.collection("settings").doc("clinic").get(), clinic.collection("rooms").doc(session.roomId).get()]);
@@ -279,36 +306,60 @@ exports.patientPortal = onRequest({ region: "us-central1", cors: false, timeoutS
         if (item.type === "form") { const snap = await clinic.collection("formResponses").doc(item.responseId).get(); const data = snap.data(); if (snap.exists) activities.push({ type: "form", responseId: item.responseId, title: data.templateName || "Formulario", description: data.description || "", questions: data.questions || [], answers: data.answers || {} }); }
         if (item.type === "document") { const snap = await clinic.collection("visits").doc(item.visitId).get(); const doc = (snap.data()?.documents || []).find((entry) => entry.documentId === item.documentId); if (doc) activities.push({ type: "document", visitId: item.visitId, documentId: item.documentId, title: doc.name || "Documento", url: doc.url || "", fields: (doc.fields || []).filter((field) => !field.hidden && field.type !== "signature"), answers: doc.answers || {} }); }
       }
+      if (activities.length !== (session.activities || []).length) throw new Error("invalid-activity");
       return response.json({ clinicName: settingsSnap.data()?.clinicName || "Clinic Control", roomName: roomSnap.data()?.name || "Room", firstName: (patientSnap.data()?.name || "").split(" ")[0], language: session.language, currentIndex: session.currentIndex || 0, activities, expiresAt: session.expiresAt.toDate().toISOString() });
     }
     if (action === "submitForm") {
       const item = (session.activities || [])[session.currentIndex || 0]; if (item?.type !== "form" || item.responseId !== request.body.responseId) throw new Error("invalid-activity");
       const formRef = clinic.collection("formResponses").doc(item.responseId); const snap = await formRef.get(); const form = snap.data();
+      if (!form || form.patientId !== session.patientId) throw new Error("invalid-activity");
       const answers = request.body.answers || {}; const missing = (form.questions || []).find((q) => q.required && !String(answers[q.id] || "").trim()); if (missing) return response.status(400).json({ error: "required", label: missing.label });
-      await formRef.set({ answers, status: "completed", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), completedBy: "patient-portal", roomId: session.roomId }, { merge: true });
-      await ref.update({ currentIndex: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }); return response.json({ ok: true });
+      await advancePortalSession(ref, session.currentIndex || 0, async (transaction) => {
+        transaction.set(formRef, { answers, status: "completed", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), completedBy: "patient-portal", roomId: session.roomId }, { merge: true });
+      });
+      return response.json({ ok: true });
     }
     if (action === "signDocument") {
       const item = (session.activities || [])[session.currentIndex || 0]; if (item?.type !== "document" || item.visitId !== request.body.visitId || item.documentId !== request.body.documentId || request.body.consent !== true) throw new Error("invalid-activity");
       const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(request.body.signature || ""); if (!match || match[1].length > 2000000) throw new Error("invalid-signature"); const signedBy = String(request.body.signedBy || "").trim().slice(0, 160); if (!signedBy) throw new Error("signer-required");
       const visitRef = clinic.collection("visits").doc(item.visitId); const snap = await visitRef.get(); const visit = snap.data(); const doc = (visit.documents || []).find((entry) => entry.documentId === item.documentId); if (!doc || visit.patientId !== session.patientId) throw new Error("invalid-document");
-      const answers = request.body.answers || {}; const missing = (doc.fields || []).find((field) => field.required && !String(answers[field.id] || "").trim()); if (missing) return response.status(400).json({ error: "required", label: missing.label });
+      const answers = request.body.answers || {}; const missing = (doc.fields || []).find((field) => !field.hidden && field.type !== "signature" && field.required && !String(answers[field.id] ?? "").trim()); if (missing) return response.status(400).json({ error: "required", label: missing.label });
       const token = crypto.randomUUID(); const path = `clinics/${session.clinicId}/signatures/${item.visitId}/${item.documentId}/${token}.png`; const file = getStorage().bucket().file(path); await file.save(Buffer.from(match[1], "base64"), { metadata: { contentType: "image/png", metadata: { firebaseStorageDownloadTokens: token } } });
       const bucket = getStorage().bucket(); const signatureUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`; const signedAt = new Date().toISOString();
       const librarySnap = await clinic.collection("documents").doc(item.documentId).get(); const sourcePath = librarySnap.data()?.path; let completedPdfUrl = ""; let completedPdfPath = ""; let completedFields = doc.fields || [];
       if (sourcePath) {
         try {
           const [source] = await bucket.file(sourcePath).download();
-          if (!completedFields.some((field) => field.placement === "signature") || completedFields.some((field) => field.box && !field.placement)) { const [analysis] = await documentAiClient.processDocument({ name: FORM_PROCESSOR_NAME, rawDocument: { content: source.toString("base64"), mimeType: "application/pdf" } }); completedFields = detectedRoomFields(analysis.document || {}); }
+          if (!completedFields.some((field) => field.placement === "signature")) {
+            try {
+              const [analysis] = await documentAiClient.processDocument({ name: FORM_PROCESSOR_NAME, rawDocument: { content: source.toString("base64"), mimeType: "application/pdf" } });
+              completedFields = [...completedFields, ...detectedRoomFields(analysis.document || {}).filter((field) => field.placement === "signature")];
+            } catch (analysisError) { logger.warn("Using existing PDF fields", { message: analysisError.message }); }
+          }
           const completed = await createCompletedPdf({ source, fields: completedFields, answers, signatureBytes: Buffer.from(match[1], "base64") });
           const completedToken = crypto.randomUUID(); completedPdfPath = `clinics/${session.clinicId}/completed-documents/${item.visitId}/${item.documentId}/${completedToken}.pdf`; await bucket.file(completedPdfPath).save(completed, { metadata: { contentType: "application/pdf", contentDisposition: `inline; filename="${String(doc.name || "documento.pdf").replace(/[^a-zA-Z0-9._ -]/g, "")}"`, metadata: { firebaseStorageDownloadTokens: completedToken } } });
           completedPdfUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(completedPdfPath)}?alt=media&token=${completedToken}`;
         } catch (pdfError) { logger.error("Could not create completed PDF", { clinicId: session.clinicId, visitId: item.visitId, documentId: item.documentId, message: pdfError.message }); }
       }
-      const documents = visit.documents.map((entry) => entry.documentId === item.documentId ? { ...entry, fields: completedFields, answers, status: "signed", signedBy, signedAt, signatureUrl, signaturePath: path, completedPdfUrl, completedPdfPath, consentAccepted: true, signedInRoomId: session.roomId } : entry); await visitRef.update({ documents, updatedAt: signedAt }); await ref.update({ currentIndex: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }); return response.json({ ok: true, completedPdfUrl });
+      await advancePortalSession(ref, session.currentIndex || 0, async (transaction) => {
+        const latest = (await transaction.get(visitRef)).data();
+        if (!latest || latest.patientId !== session.patientId || !latest.documents?.some((entry) => entry.documentId === item.documentId)) throw new Error("invalid-document");
+        const documents = latest.documents.map((entry) => entry.documentId === item.documentId ? { ...entry, fields: completedFields, answers, status: "signed", signedBy, signedAt, signatureUrl, signaturePath: path, completedPdfUrl, completedPdfPath, consentAccepted: true, signedInRoomId: session.roomId } : entry);
+        transaction.update(visitRef, { documents, updatedAt: signedAt });
+      });
+      return response.json({ ok: true, completedPdfUrl });
     }
     if (action === "complete") {
-      await ref.update({ status: "completed", completedAt: FieldValue.serverTimestamp() }); await clinic.collection("rooms").doc(session.roomId).set({ status: session.completionAction || "ready", portalActive: false, portalExpiresAt: null, updatedAt: new Date().toISOString() }, { merge: true }); return response.json({ ok: true });
+      await db.runTransaction(async (transaction) => {
+        const current = (await transaction.get(ref)).data();
+        const roomRef = clinic.collection("rooms").doc(session.roomId);
+        const room = (await transaction.get(roomRef)).data();
+        if (portalExpired(current) || !room || room.patientId !== session.patientId || (room.portalSessionKey && room.portalSessionKey !== ref.id)) throw new Error("invalid-session");
+        if ((current.currentIndex || 0) < current.activities.length) throw new Error("pending-activities");
+        transaction.update(ref, { status: "completed", completedAt: FieldValue.serverTimestamp() });
+        transaction.update(roomRef, { status: current.completionAction || "ready", portalActive: false, portalExpiresAt: null, updatedAt: new Date().toISOString() });
+      });
+      return response.json({ ok: true });
     }
     return response.status(400).json({ error: "unknown-action" });
   } catch (error) {
