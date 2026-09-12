@@ -40,7 +40,7 @@ function localDateKey(date = new Date()) {
 }
 
 function formatAppointment(date, language) {
-  return new Intl.DateTimeFormat(language === "Inglés" ? "en-US" : "es-US", {
+  return new Intl.DateTimeFormat(/^(en|english|inglés)$/i.test(String(language || "")) ? "en-US" : "es-US", {
     timeZone: TIME_ZONE,
     weekday: "long",
     month: "long",
@@ -52,7 +52,7 @@ function formatAppointment(date, language) {
 
 function birthdayMessage(patient, clinicName) {
   const name = patient.name || "";
-  if (patient.language === "Inglés") {
+  if (/^(en|english|inglés)$/i.test(String(patient.language || ""))) {
     return {
       subject: `Happy birthday, ${name}!`,
       text: `Happy birthday, ${name}! We hope you have a wonderful day filled with health and happiness. Best wishes from ${clinicName}.`,
@@ -69,7 +69,7 @@ function birthdayMessage(patient, clinicName) {
 function appointmentMessage(patient, clinicName, visitDate, reminderLabel) {
   const name = patient.name || "";
   const formattedDate = formatAppointment(visitDate, patient.language);
-  if (patient.language === "Inglés") {
+  if (/^(en|english|inglés)$/i.test(String(patient.language || ""))) {
     return {
       subject: `Appointment reminder · ${clinicName}`,
       text: `Hello ${name}. ${reminderLabel}: you have an appointment on ${formattedDate} at ${clinicName}. Please contact us if you need to reschedule.`,
@@ -213,7 +213,7 @@ async function sendAppointmentReminders(clinicNames) {
     const patient = patientDoc.data();
     if (!patient) continue;
     const clinic = await clinicSettingsFor(clinicRef, clinicNames);
-    const reminderLabel = patient.language === "Inglés" ? reminder.en : reminder.es;
+    const reminderLabel = /^(en|english|inglés)$/i.test(String(patient.language || "")) ? reminder.en : reminder.es;
     const message = appointmentMessage(patient, clinic.clinicName, appointmentDate, reminderLabel);
     const recordMetadata = { type: "appointment", reminder: reminder.key, clinicId: clinicRef.id, patientId: patientDoc.id, [isAppointment ? "appointmentId" : "visitId"]: doc.id };
 

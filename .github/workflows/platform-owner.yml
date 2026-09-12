@@ -1,0 +1,46 @@
+name: Manage platform owner access
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Verified email of the authorized platform owner
+        required: true
+        type: string
+      operation:
+        description: Preview first; apply only after verifying the account identity
+        required: true
+        default: dry-run
+        type: choice
+        options: [dry-run, apply, revoke]
+permissions:
+  contents: read
+concurrency:
+  group: platform-owner-access
+  cancel-in-progress: false
+jobs:
+  manage:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install administrative SDK
+        working-directory: functions
+        run: npm ci --omit=dev
+      - name: Prepare administrative credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT_B64"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 --decode > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+      - name: Inspect or update owner claim
+        env:
+          OWNER_EMAIL: ${{ inputs.email }}
+          OWNER_OPERATION: ${{ inputs.operation }}
+        run: node scripts/grant-platform-admin.cjs --project=clinic-control-6ff25 "--email=$OWNER_EMAIL" "--$OWNER_OPERATION"
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"

@@ -1,0 +1,51 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const records=new Map([
+  ['clinics/clinic/settings/clinic',{clinicName:'Fictional Clinic'}],
+  ['userProfiles/reception',{clinicId:'clinic',role:'reception',status:'active'}],
+  ['userProfiles/admin',{clinicId:'clinic',role:'admin',status:'active'}],
+  ['userProfiles/forged',{clinicId:'clinic',role:'admin',status:'active',platformAdmin:true}],
+]);
+const docs=[];
+function ref(path){return {id:path.split('/').pop(),path,get:async()=>({exists:records.has(path),data:()=>records.get(path)}),collection:name=>collection(`${path}/${name}`)};}
+function collection(path){return {doc:(id='audit')=>ref(`${path}/${id}`),orderBy:()=>({limit:()=>({get:async()=>({size:docs.length,docs}),startAfter:()=>({get:async()=>({size:0,docs:[]})})})})};}
+const db={doc:ref,collection,runTransaction:async fn=>fn({get:r=>r.get(),set:(r,data,options)=>records.set(r.path,options?.merge?{...records.get(r.path),...data}:data),update:(r,data)=>records.set(r.path,{...records.get(r.path),...data}),create:(r,data)=>records.set(r.path,data)})};
+const modules={
+  'firebase-functions/v2/https':{onRequest:(_,fn)=>fn},
+  'firebase-admin/auth':{getAuth:()=>({verifyIdToken:async token=>{if(token==='bad')throw Error();return {uid:token==='owner'?'platform-owner':token,platformAdmin:token==='owner'}},getUser:async()=>({email:'owner@example.test'})})},
+  'firebase-admin/firestore':{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>null}}
+};
+const context=vm.createContext({require:name=>modules[name],exports:{},process:{env:{}},console});
+vm.runInContext(fs.readFileSync('functions/platform.js','utf8'),context);
+async function request(token,body,origin='https://marquettisolutions.github.io',method='POST'){
+ const res={statusCode:200,set(){},status(code){this.statusCode=code;return this},json(data){this.body=data;return this},send(){return this}};
+ await context.exports.platformApi({method,headers:{origin,authorization:token?`Bearer ${token}`:''},body},res);return res;
+}
+(async()=>{
+ assert.equal((await request('',{action:'ownerOverview'})).statusCode,401);
+ assert.equal((await request('bad',{action:'ownerOverview'})).statusCode,401);
+ assert.equal((await request('clinic',{action:'ownerOverview'})).statusCode,403);
+ assert.equal((await request('forged',{action:'ownerOverview'})).statusCode,403,'A profile field must never grant platform privileges');
+ assert.equal((await request('owner',{action:'ownerOverview'},'https://evil.example')).statusCode,403);
+ assert.equal((await request('owner',{action:'ownerOverview'},undefined,'GET')).statusCode,405);
+ assert.equal((await request('owner',{action:'ownerOverview'},undefined,'OPTIONS')).statusCode,204);
+ assert.equal((await request('reception',{action:'subscription',clinicId:'clinic'})).statusCode,403);
+ assert.equal((await request('other',{action:'subscription',clinicId:'clinic'})).statusCode,403);
+ assert.equal((await request('clinic',{action:'checkout',clinicId:'clinic'})).body.error,'billing-not-configured');
+ assert.equal((await request('admin',{action:'billingPortal',clinicId:'clinic'})).statusCode,503);
+ assert.equal((await request('clinic',{action:'subscription',clinicId:'clinic'})).body.status,'pilot');
+ assert.equal((await request('clinic',{action:'syncClinic',clinicId:'clinic'})).statusCode,200);
+ assert.equal(records.get('platformClinics/clinic').name,'Fictional Clinic');
+ docs.push({id:'clinic',data:()=>({...records.get('platformClinics/clinic'),patients:['must never be returned']})});
+ const overview=await request('owner',{action:'ownerOverview'});
+ assert.equal(overview.statusCode,200);
+ assert.equal(overview.body.clinics[0].patients,undefined);
+ assert.equal((await request('clinic',{action:'updatePilot',clinicId:'clinic',status:'archived',pilotEndsAt:null})).statusCode,403);
+ assert.equal((await request('owner',{action:'updatePilot',clinicId:'clinic',status:'paid',pilotEndsAt:null})).statusCode,400);
+ assert.equal((await request('owner',{action:'updatePilot',clinicId:'clinic',status:'pilot',pilotEndsAt:'2026-02-31'})).statusCode,400);
+ assert.equal((await request('owner',{action:'updatePilot',clinicId:'clinic',status:'pilot',pilotEndsAt:'2026-12-31'})).statusCode,200);
+ assert.equal(records.get('platformAudit/audit').actorUid,'platform-owner');
+ assert.equal(records.get('platformClinics/clinic').pilotEndsAt,'2026-12-31');
+ console.log('Platform checks passed: authentication, trusted owner claim, cross-clinic isolation, metadata-only directory, audit, and disabled billing.');
+})().catch(error=>{console.error(error);process.exitCode=1});

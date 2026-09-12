@@ -1,0 +1,45 @@
+:root { color-scheme: light; }
+#commercialHome { display:none; background:#071522; color:#eff8fa; min-height:100vh; font-family:Inter,system-ui,sans-serif; }
+.marketing-mode #commercialHome { display:block; }
+.marketing-mode #authScreen { display:none!important; }
+.commercial-nav,.commercial-footer { max-width:1160px; margin:auto; padding:24px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.commercial-brand { color:#5eead4; font-size:23px; font-weight:800; text-decoration:none; }
+.commercial-nav button,.commercial-footer button,.app-language-switch button { border:0; background:transparent; color:inherit; padding:10px; cursor:pointer; font:inherit; }
+.commercial-nav button:hover,.commercial-footer button:hover { color:#5eead4; }
+.commercial-hero { max-width:1160px; margin:auto; padding:70px 24px; display:grid; grid-template-columns:1.2fr 1fr; gap:70px; align-items:center; }
+.commercial-hero h1 { font-size:clamp(36px,4.3vw,60px); line-height:1.12; letter-spacing:-2px; margin:20px 0; }
+.commercial-hero p,.commercial-section p { color:#b7c9d8; line-height:1.7; font-size:17px; }
+.commercial-hero small { display:block; color:#a8becf; margin-top:18px; line-height:1.5; }
+.commercial-eyebrow { font-size:11px; letter-spacing:1.5px; color:#14b8a6; font-weight:800; }
+.commercial-actions { display:flex; flex-wrap:wrap; gap:12px; margin:24px 0; }
+.commercial-actions a { text-decoration:none; }
+.commercial-preview { background:#132636; border:1px solid #294457; padding:26px; border-radius:24px; box-shadow:0 30px 90px #0004; }
+.commercial-preview>span { color:#a9bfce; font-size:10px; letter-spacing:1px; }
+.commercial-preview p { padding:14px 0; border-top:1px solid #294457; font-size:14px; }
+.commercial-preview strong { margin-left:12px; }
+.commercial-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:26px 0; }
+.commercial-metrics>div { display:grid; gap:8px; border-radius:12px; background:#0a1b28; padding:16px 10px; font-size:12px; }
+.commercial-metrics b { font-size:26px; color:#5eead4; }
+.commercial-section { max-width:1160px; padding:38px 24px; margin:auto; }
+.commercial-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+.commercial-grid article { padding:24px; background:#102230; border:1px solid #294457; border-radius:16px; }
+.commercial-pilot { display:flex; align-items:center; gap:30px; }
+.commercial-pilot>div { flex:1; }
+.commercial-footer { color:#a9bfce; border-top:1px solid #294457; font-size:13px; }
+.app-language-switch { position:fixed; right:16px; top:6px; z-index:110; background:#fff; color:#173047; box-shadow:0 2px 12px #0002; border-radius:12px; font:12px system-ui; }
+.app-language-switch a { color:#0f766e; padding:8px; text-decoration:none; }
+.marketing-mode .app-language-switch { display:none; }
+.platform-menu { display:grid; gap:8px; padding:8px 0; }
+.platform-menu [hidden] { display:none; }
+.platform-dialog { width:min(900px,94vw); max-height:88vh; padding:0; border:0; border-radius:20px; color:#173047; }
+.platform-dialog::backdrop { background:#061522aa; }
+.platform-header { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid #dbe5ec; }
+.platform-header h2 { margin:0; font-size:23px; }
+.platform-content { padding:24px; line-height:1.6; }
+.platform-content [data-platform-notice] { border-radius:10px; padding:16px; background:#fff4dc; color:#714a00; }
+.platform-table-wrap { overflow:auto; }
+.platform-dialog table { width:100%; border-collapse:collapse; }
+.platform-dialog td,.platform-dialog th { text-align:left; padding:12px 8px; border-bottom:1px solid #dbe5ec; }
+.platform-dialog td small { display:block; }
+.platform-dialog input,.platform-dialog select { padding:8px; max-width:200px; border:1px solid #a8becf; border-radius:8px; }
+@media(max-width:760px) { .commercial-hero { grid-template-columns:1fr; padding-top:35px; gap:35px; } .commercial-grid { grid-template-columns:1fr; } .commercial-pilot { align-items:flex-start; flex-direction:column; } .commercial-nav { gap:8px; } }

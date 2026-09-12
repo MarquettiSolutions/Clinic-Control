@@ -19,6 +19,7 @@ const db = { doc, collection, runTransaction: async (callback) => {
   return result;
 } };
 const modules = {
+  './platform': {},
   'firebase-functions/v2/scheduler': { onSchedule: () => {} },
   'firebase-functions/v2/https': { onRequest: (_, handler) => handler },
   'firebase-functions': { logger: { warn() {}, error() {} } },
@@ -94,9 +95,9 @@ async function main() {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', value: '', classList: { add() {}, remove() {} }, addEventListener() {} }); return elements.get(id); };
   const saved = new Map();
-  const browser = vm.createContext({ document: { querySelector: element, querySelectorAll: () => [] },
+  const browser = vm.createContext({ T: value => value, ClinicI18n: { language: 'es' }, document: { querySelector: element, querySelectorAll: () => [] },
     sessionStorage: { getItem: (k) => saved.get(k), setItem: (k, v) => saved.set(k, v), removeItem: (k) => saved.delete(k) },
-    window: { location: { search: '', pathname: '/Clinic-Control/patient.html' } }, history: { replaceState() {} },
+    window: { addEventListener() {}, location: { search: '', pathname: '/Clinic-Control/patient.html' } }, history: { replaceState() {} },
     URLSearchParams, setTimeout() {}, fetch: async () => { throw new TypeError('offline'); }, TypeError });
   vm.runInContext(fs.readFileSync('patient.js', 'utf8'), browser);
   saved.set('roomPortalCode', 'TESTCODE');

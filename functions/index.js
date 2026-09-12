@@ -10,6 +10,7 @@ const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 const crypto = require("crypto");
 
 initializeApp();
+exports.platformApi = require("./platform").platformApi;
 
 const db = getFirestore();
 const TIME_ZONE = "America/Chicago";
@@ -130,7 +131,7 @@ function birthdayMessage(patient, clinicName) {
   const safeName = escapeHtml(name);
   const safeClinic = escapeHtml(clinicName);
 
-  if (patient.language === "Inglés") {
+  if (/^(en|english|inglés)$/i.test(String(patient.language || ""))) {
     return {
       subject: `Happy birthday, ${name}!`,
       text: `Happy birthday, ${name}! We hope you have a wonderful day filled with health and happiness. Best wishes from ${clinicName}.`,

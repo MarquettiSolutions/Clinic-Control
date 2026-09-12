@@ -11,7 +11,7 @@ function harness({ failAuth = false, failSettings = false } = {}) {
   const button = { disabled: false };
   let submit;
   const form = { querySelector: () => button, reset() { log.reset = true; }, addEventListener(_, fn) { submit = fn; } };
-  const context = vm.createContext({ registrationInProgress: false, console: { error() {} },
+  const context = vm.createContext({ T: value => value, registrationInProgress: false, console: { error() {} },
     $: (selector) => selector === '#registerForm' ? form : ({ value: values[selector.slice(1)] }),
     toast: (message) => log.messages.push(message), initFirebase() {},
     getAuthErrorMessage: () => 'Error de registro', showPage: (page) => { log.page = page; },

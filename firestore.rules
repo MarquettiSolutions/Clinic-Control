@@ -11,6 +11,10 @@ service cloud.firestore {
     function roleFor(clinicId) { return request.auth.uid == clinicId ? 'admin' : profile().role; }
     function hasRole(clinicId, roles) { return belongsTo(clinicId) && roleFor(clinicId) in roles; }
     function validRole(role) { return role in ['admin', 'reception', 'clinical', 'accounting']; }
+    // Platform administration is available only through the authenticated backend.
+    // No browser account, including the platform owner, can write these directly.
+    match /platformClinics/{document=**} { allow read, write: if false; }
+    match /platformAudit/{document=**} { allow read, write: if false; }
     function validMemberStatus(status) { return status in ['active', 'disabled']; }
     function validNewProfile(userId) {
       return request.resource.data.uid == userId

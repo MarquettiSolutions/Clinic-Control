@@ -66,7 +66,7 @@ function enablePatientSelectSearch(select, options = {}) {
     search = document.createElement("input");
     search.type = "search";
     search.className = "patient-select-search";
-    search.placeholder = options.placeholder || "Buscar paciente por nombre, teléfono, documento o correo...";
+    search.placeholder = options.placeholder || T("Buscar paciente por nombre, teléfono, documento o correo...");
     search.autocomplete = "off";
     search.setAttribute("aria-label", options.ariaLabel || "Buscar paciente");
     select.before(search);
@@ -75,8 +75,8 @@ function enablePatientSelectSearch(select, options = {}) {
       const currentValue = select.value;
       const matches = (select._patientSearchEntries || []).filter((entry) => !query || entry.search.includes(query));
       select.innerHTML = matches.length
-        ? matches.map((entry) => `<option value="${escapeHtml(entry.value)}">${escapeHtml(entry.label)}</option>`).join("")
-        : `<option value="">No se encontraron pacientes</option>`;
+        ? matches.map((entry) => H`<option value="${escapeHtml(entry.value)}">${escapeHtml(entry.label)}</option>`).join("")
+        : H`<option value="">No se encontraron pacientes</option>`;
       if (matches.some((entry) => entry.value === currentValue)) select.value = currentValue;
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
@@ -288,6 +288,7 @@ function showAuthScreen() {
 }
 
 function showAppScreen() {
+  document.body.classList.remove("marketing-mode");
   $("#authScreen").classList.add("hidden");
   document.querySelector(".app-shell").classList.remove("hidden");
 }
@@ -402,7 +403,7 @@ function subscribeToRealtime() {
   if (["admin", "accounting"].includes(currentAccess.role)) unsubscribeCashClosings = cashClosingsRef.onSnapshot((snapshot) => { state.cashClosings = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })); renderAdvancedAccounting(); });
 }
 
-const roleLabels = { admin: "Administrador", reception: "Recepción", clinical: "Profesional clínico", accounting: "Contabilidad" };
+const roleLabels = ClinicI18n.labels({ admin: "Administrador", reception: "Recepción", clinical: "Profesional clínico", accounting: "Contabilidad" });
 const rolePages = {
   admin: ["dashboard", "patients", "crm", "appointments", "rooms", "tasks", "visits", "billing", "invoices", "reports", "settings", "patientRecord", "visitDialog"],
   reception: ["dashboard", "patients", "crm", "appointments", "rooms", "tasks", "patientRecord"],
@@ -565,8 +566,8 @@ async function uploadClinicDocument(file) {
   recordActivity({ action: "uploaded", entityType: "document", entityId: id, title: "Documento cargado", detail: file.name }).catch(console.error);
   if (file.type === "application/pdf") {
     state.documents = [...state.documents.filter((item) => item.id !== id), data];
-    toast(`Analizando automáticamente ${file.name}...`);
-    try { await analyzeClinicDocument(id, false); } catch (error) { console.error(error); toast(`${file.name} se cargó, pero necesita revisión manual.`); }
+    toast(S`Analizando automáticamente ${file.name}...`);
+    try { await analyzeClinicDocument(id, false); } catch (error) { console.error(error); toast(S`${file.name} se cargó, pero necesita revisión manual.`); }
   }
 }
 
@@ -578,22 +579,22 @@ async function analyzeClinicDocument(id, openReview = true) {
   const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "document-analysis-failed");
   documentItem.fields = result.fields || []; documentItem.roomReady = Boolean(result.roomReady); documentItem.analysisStatus = result.fields?.length ? "completed" : "signature_only";
   renderClinicDocuments();
-  toast(result.fields?.length ? `${result.fields.length} campo(s) detectados automáticamente.` : "Documento listo para Room: no requiere campos, solo revisión y firma.");
+  toast(result.fields?.length ? `${result.fields.length} campo(s) detectados automáticamente.` : T("Documento listo para Room: no requiere campos, solo revisión y firma."));
 }
 
 async function deleteClinicDocument(id) {
   const documentItem = state.documents.find((item) => item.id === id);
-  if (!documentItem || !confirm(`¿Eliminar ${documentItem.name}?`)) return;
+  if (!documentItem || !confirm(S`¿Eliminar ${documentItem.name}?`)) return;
   try {
     if (documentItem.path) await storage.ref(documentItem.path).delete().catch((error) => {
       if (error.code !== "storage/object-not-found") throw error;
     });
     await getCollectionRef("documents").doc(id).delete();
     recordActivity({ action: "deleted", entityType: "document", entityId: id, title: "Documento eliminado", detail: documentItem.name }).catch(console.error);
-    toast("Documento eliminado");
+    toast(T("Documento eliminado"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo eliminar el documento");
+    toast(T("No se pudo eliminar el documento"));
   }
 }
 
@@ -625,7 +626,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
 function money(value) {
-  return Number(value || 0).toLocaleString("en-US", {
+  return Number(value || 0).toLocaleString(ClinicI18n.locale, {
     style: "currency",
     currency: "USD"
   });
@@ -657,6 +658,10 @@ function readLogoFile(file) {
   });
 }
 
+function invoiceFooterCopy(value) {
+  return value === "Gracias por confiar en nuestra clínica." ? T(value) : value;
+}
+
 function invoiceSettings() {
   return {
     accent: state.settings.invoiceAccentColor || "#0f766e",
@@ -685,14 +690,14 @@ function visitItems(visit) {
 
 function payerLabel(p) {
   return p?.payerType === "insurance"
-    ? `Seguro médico${p.insuranceCompany ? ` · ${p.insuranceCompany}` : ""}`
-    : "Pago propio";
+    ? `${T("Seguro médico")}${p.insuranceCompany ? ` · ${p.insuranceCompany}` : ""}`
+    : T("Pago propio");
 }
 
 function updateUserInfo() {
   const user = auth.currentUser;
   if (user) {
-    $("#userInfo").textContent = `${currentAccess.name || user.email || user.uid} · ${roleLabels[currentAccess.role] || currentAccess.role}`;
+    $("#userInfo").textContent = S`${currentAccess.name === "Propietario" ? T("Propietario") : currentAccess.name || user.email || user.uid} · ${roleLabels[currentAccess.role] || currentAccess.role}`;
   } else {
     $("#userInfo").textContent = "";
   }
@@ -700,7 +705,7 @@ function updateUserInfo() {
 
 function fmtDate(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("es-US", {
+  return new Date(value).toLocaleString(ClinicI18n.locale, {
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
@@ -711,7 +716,7 @@ function fmtDate(value) {
 
 function fmtBirthDate(value) {
   if (!value) return "-";
-  return new Date(`${value}T00:00:00`).toLocaleDateString("es-US", {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(ClinicI18n.locale, {
     month: "2-digit",
     day: "2-digit",
     year: "numeric"
@@ -762,20 +767,20 @@ function paymentType(visit) {
 }
 
 function financialStatus(visit) {
-  if (visit.claimStatus === "rejected") return { key: "rejected", label: "Rechazada", color: "red" };
+  if (visit.claimStatus === "rejected") return { key: "rejected", label: T("Rechazada"), color: "red" };
   const paid = totalPaid(visit);
-  if (balance(visit) <= 0) return { key: "paid", label: "Pagado", color: "green" };
-  if (paid > 0) return { key: "partial", label: "Pago parcial", color: "blue" };
-  return { key: "pending", label: "Pendiente", color: "red" };
+  if (balance(visit) <= 0) return { key: "paid", label: T("Pagado"), color: "green" };
+  if (paid > 0) return { key: "partial", label: T("Pago parcial"), color: "blue" };
+  return { key: "pending", label: T("Pendiente"), color: "red" };
 }
 
 const appointmentStatuses = {
-  scheduled: { label: "Programada", color: "blue" },
-  confirmed: { label: "Confirmada", color: "green" },
-  arrived: { label: "En espera", color: "orange" },
-  completed: { label: "Atendida", color: "green" },
-  cancelled: { label: "Cancelada", color: "red" },
-  no_show: { label: "No asistió", color: "red" }
+  scheduled: { get label() { return T("Programada"); }, color: "blue" },
+  confirmed: { get label() { return T("Confirmada"); }, color: "green" },
+  arrived: { get label() { return T("En espera"); }, color: "orange" },
+  completed: { get label() { return T("Atendida"); }, color: "green" },
+  cancelled: { get label() { return T("Cancelada"); }, color: "red" },
+  no_show: { get label() { return T("No asistió"); }, color: "red" }
 };
 
 function appointmentStatus(value) {
@@ -799,7 +804,7 @@ function totals(visits = state.visits) {
 function toast(message) {
   const node = $("#toast");
   clearTimeout(node._hideTimer);
-  node.textContent = message;
+  node.textContent = T(message);
   node.classList.add("show");
   if (typeof node.showPopover === "function") {
     requestAnimationFrame(() => {
@@ -822,7 +827,7 @@ function toast(message) {
 
 function showPage(pageId) {
   if (!canAccessPage(pageId)) {
-    toast("Tu rol no tiene permiso para abrir este módulo.");
+    toast(T("Tu rol no tiene permiso para abrir este módulo."));
     pageId = "dashboard";
   }
   $$(".page").forEach((page) => page.classList.toggle("active", page.id === pageId));
@@ -842,7 +847,7 @@ function showPage(pageId) {
     settings: "Ajustes"
   };
 
-  $("#pageTitle").textContent = pageId === "visitDialog" ? "Expediente de consulta" : pageId === "patientRecord" ? "Expediente del paciente" : (labels[pageId] || "Clinic Control");
+  $("#pageTitle").textContent = pageId === "visitDialog" ? T("Expediente de consulta") : pageId === "patientRecord" ? T("Expediente del paciente") : T(labels[pageId] || "Clinic Control");
   render();
 }
 
@@ -874,15 +879,15 @@ function renderDashboard() {
   const balancePatients = debtRows();
 
   $("#kpiPatients").textContent = state.patients.length;
-  $("#kpiPatientsHint").textContent = `${state.patients.length} registros activos`;
+  $("#kpiPatientsHint").textContent = S`${state.patients.length} registros activos`;
   $("#kpiTodayVisits").textContent = dayVisits.length;
   $("#kpiTodayPaid").textContent = money(dayTotals.paid);
   $("#kpiBalance").textContent = money(allTotals.debt);
-  $("#kpiBalanceHint").textContent = `${balancePatients.length} paciente(s) con deuda`;
+  $("#kpiBalanceHint").textContent = S`${balancePatients.length} paciente(s) con deuda`;
 
   const presencial = dayVisits.filter((visit) => visit.type === "Presencial").length;
   const tele = dayVisits.filter((visit) => visit.type === "Teleconsulta").length;
-  $("#kpiVisitMix").textContent = `${presencial} presenciales · ${tele} teleconsulta`;
+  $("#kpiVisitMix").textContent = S`${presencial} presenciales · ${tele} teleconsulta`;
 
   renderTimeline();
   renderMiniDebts();
@@ -900,40 +905,40 @@ const pilotChecks = [
 
 function pilotValidationState() { return state.settings.pilotValidation || {}; }
 function pilotMetric(id) {
-  if (id === "reception") return `${state.patients.length} paciente(s) disponibles`;
-  if (id === "agenda") return `${state.appointments.length} cita(s) · ${state.rooms.filter((room) => room.patientId).length} room(s) ocupado(s)`;
-  if (id === "consultation") return `${state.visits.length} consulta(s) registradas`;
-  if (id === "accounting") return `${money(totals().paid)} cobrado · ${money(totals().debt)} pendiente`;
+  if (id === "reception") return S`${state.patients.length} paciente(s) disponibles`;
+  if (id === "agenda") return S`${state.appointments.length} cita(s) · ${state.rooms.filter((room) => room.patientId).length} room(s) ocupado(s)`;
+  if (id === "consultation") return S`${state.visits.length} consulta(s) registradas`;
+  if (id === "accounting") return S`${money(totals().paid)} cobrado · ${money(totals().debt)} pendiente`;
   const pending = state.tasks.filter((task) => task.status !== "completed").length;
   const alerts = state.patients.filter(patientHasAlert).length;
-  return `${alerts} pin(es) · ${pending} tarea(s) pendiente(s)`;
+  return S`${alerts} pin(es) · ${pending} tarea(s) pendiente(s)`;
 }
 
 function renderPilotValidation() {
   const grid = $("#pilotValidationGrid"); if (!grid) return;
   const validation = pilotValidationState();
   const completed = pilotChecks.filter((check) => validation[check.id]?.passed).length;
-  $("#pilotProgressCount").textContent = `${completed}/5`;
+  $("#pilotProgressCount").textContent = S`${completed}/5`;
   grid.innerHTML = pilotChecks.map((check, index) => {
     const passed = Boolean(validation[check.id]?.passed);
-    return `<article class="pilot-check ${passed ? "is-complete" : ""}"><div class="pilot-check-head"><span class="pilot-check-number">${index + 1}</span><span class="pilot-check-status">${passed ? "✓ APROBADA" : "PENDIENTE"}</span></div><h4>${check.title}</h4><p>${check.description}</p><span class="pilot-check-metric">${pilotMetric(check.id)}</span><div class="pilot-check-actions"><button type="button" class="btn light" onclick="showPage('${check.page}')">${check.action}</button><button type="button" class="pilot-approve" onclick="togglePilotCheck('${check.id}')">${passed ? "Desmarcar" : "Sí funciona"}</button></div></article>`;
+    return H`<article class="pilot-check ${passed ? "is-complete" : ""}"><div class="pilot-check-head"><span class="pilot-check-number">${index + 1}</span><span class="pilot-check-status">${passed ? T("✓ APROBADA") : T("PENDIENTE")}</span></div><h4>${T(check.title)}</h4><p>${T(check.description)}</p><span class="pilot-check-metric">${pilotMetric(check.id)}</span><div class="pilot-check-actions"><button type="button" class="btn light" onclick="showPage('${check.page}')">${T(check.action)}</button><button type="button" class="pilot-approve" onclick="togglePilotCheck('${check.id}')">${passed ? T("Desmarcar") : T("Sí funciona")}</button></div></article>`;
   }).join("");
   const dates = pilotChecks.map((check) => validation[check.id]?.validatedAt).filter(Boolean).sort();
-  $("#pilotLastValidated").textContent = completed === 5 ? `Piloto aprobado · última validación ${fmtDate(dates.at(-1))}` : `${completed} de 5 flujos aprobados con datos ficticios.`;
+  $("#pilotLastValidated").textContent = completed === 5 ? S`Piloto aprobado · última validación ${fmtDate(dates.at(-1))}` : S`${completed} de 5 flujos aprobados con datos ficticios.`;
 }
 
 async function togglePilotCheck(id) {
   if (!pilotChecks.some((check) => check.id === id)) return;
   const current = pilotValidationState(); const passed = !current[id]?.passed;
   const pilotValidation = { ...current, [id]: { passed, validatedAt: passed ? new Date().toISOString() : "", validatedBy: auth.currentUser.uid } };
-  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = pilotValidation; renderPilotValidation(); toast(passed ? "Flujo aprobado para el piloto." : "Prueba marcada como pendiente."); }
-  catch (error) { console.error(error); toast("No se pudo guardar la validación."); }
+  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = pilotValidation; renderPilotValidation(); toast(passed ? T("Flujo aprobado para el piloto.") : T("Prueba marcada como pendiente.")); }
+  catch (error) { console.error(error); toast(T("No se pudo guardar la validación.")); }
 }
 
 async function resetPilotValidation() {
-  if (!confirm("¿Reiniciar las cinco pruebas del piloto? No se eliminarán pacientes ni operaciones.")) return;
-  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation: {}, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = {}; renderPilotValidation(); toast("Validación del piloto reiniciada."); }
-  catch (error) { console.error(error); toast("No se pudo reiniciar la validación."); }
+  if (!confirm(T("¿Reiniciar las cinco pruebas del piloto? No se eliminarán pacientes ni operaciones."))) return;
+  try { await getCollectionRef("settings").doc("clinic").set({ pilotValidation: {}, updatedAt: new Date().toISOString() }, { merge: true }); state.settings.pilotValidation = {}; renderPilotValidation(); toast(T("Validación del piloto reiniciada.")); }
+  catch (error) { console.error(error); toast(T("No se pudo reiniciar la validación.")); }
 }
 
 function renderTimeline() {
@@ -941,22 +946,22 @@ function renderTimeline() {
   const box = $("#activityTimeline");
 
   if (!visits.length) {
-    box.innerHTML = `<div class="empty">No hay actividad registrada.</div>`;
+    box.innerHTML = H`<div class="empty">No hay actividad registrada.</div>`;
     return;
   }
 
   box.innerHTML = visits.map((visit) => {
     const p = patient(visit.patientId);
     const isPaid = balance(visit) <= 0;
-    return `
+    return H`
       <div class="timeline-item">
         <div class="timeline-icon">${visit.type === "Teleconsulta" ? "T" : "P"}</div>
         <div>
-          <strong>${p?.name || "Paciente eliminado"}</strong>
-          <span>${visit.reason || "Consulta"} · ${fmtDate(visit.date)}</span>
+          <strong>${p?.name || T("Paciente eliminado")}</strong>
+          <span>${visit.reason || T("Consulta")} · ${fmtDate(visit.date)}</span>
           <div class="timeline-meta">
-            <span class="payment-status ${isPaid ? "" : "pending"}">${isPaid ? "Pagado" : "Pago pendiente"}</span>
-            <span>${visit.type || "Presencial"}${visit.doctor ? ` · ${visit.doctor}` : ""}</span>
+            <span class="payment-status ${isPaid ? "" : "pending"}">${isPaid ? T("Pagado") : T("Pago pendiente")}</span>
+            <span>${visit.type || T("Presencial")}${visit.doctor ? ` · ${visit.doctor}` : ""}</span>
           </div>
         </div>
         <div class="amount">${money(visit.total)}</div>
@@ -994,11 +999,11 @@ function renderMiniDebts() {
   const box = $("#balanceMiniList");
 
   if (!rows.length) {
-    box.innerHTML = `<div class="empty">Sin balances pendientes.</div>`;
+    box.innerHTML = H`<div class="empty">Sin balances pendientes.</div>`;
     return;
   }
 
-  box.innerHTML = rows.map((row) => `
+  box.innerHTML = rows.map((row) => H`
     <div class="mini-row">
       <div>
         <strong>${row.patient.name}</strong>
@@ -1025,26 +1030,26 @@ function renderPatients() {
   const query = ($("#patientSearch")?.value || "").toLowerCase().trim();
   const rows = state.patients.filter((p) => `${p.name} ${p.phone} ${p.email || ""} ${p.address || ""} ${p.document} ${p.language || ""} ${p.notes || ""} ${p.source || ""} ${p.lifecycle || ""} ${p.patientAlertMessage || ""} ${p.insuranceCompany || ""} ${p.insuranceMemberId || ""} ${p.insuranceGroup || ""}`.toLowerCase().includes(query));
 
-  $("#patientsTable").innerHTML = rows.length ? rows.map((p) => `
+  $("#patientsTable").innerHTML = rows.length ? rows.map((p) => H`
     <tr class="${patientHasAlert(p) ? "patient-alert-row" : ""}">
-      <td><button class="patient-name-link" onclick="openPatientRecord('${p.id}')">${escapeHtml(p.name)}</button>${patientHasAlert(p) ? `<div class="patient-alert-chip">📌 ${escapeHtml(p.patientAlertMessage)} <small>${patientAlertDateLabel(p)}</small></div>` : `<br><small>${p.notes || "Sin notas"}</small>`}<br><span class="badge ${p.payerType === "insurance" ? "blue" : "green"}">${escapeHtml(payerLabel(p))}</span></td>
-      <td>${p.phone || "-"}<br><small>${p.email || "Sin correo"}</small></td>
-      <td>${fmtBirthDate(p.birthDate)}<br><small>${p.age !== "" && p.age != null ? `${p.age} años` : "Edad no indicada"}</small></td>
-      <td><span class="badge blue">${p.language || "No indicado"}</span></td>
+      <td><button class="patient-name-link" onclick="openPatientRecord('${p.id}')">${escapeHtml(p.name)}</button>${patientHasAlert(p) ? H`<div class="patient-alert-chip">📌 ${escapeHtml(p.patientAlertMessage)} <small>${patientAlertDateLabel(p)}</small></div>` : H`<br><small>${p.notes || T("Sin notas")}</small>`}<br><span class="badge ${p.payerType === "insurance" ? "blue" : "green"}">${escapeHtml(payerLabel(p))}</span></td>
+      <td>${p.phone || "-"}<br><small>${p.email || T("Sin correo")}</small></td>
+      <td>${fmtBirthDate(p.birthDate)}<br><small>${p.age !== "" && p.age != null ? S`${p.age} años` : T("Edad no indicada")}</small></td>
+      <td><span class="badge blue">${escapeHtml(T(p.language || "No indicado"))}</span></td>
       <td>${p.document || "-"}</td>
       <td>${fmtDate(p.createdAt)}</td>
       <td>
         <div class="row-actions">
-          ${["admin", "reception", "clinical"].includes(currentAccess.role) ? `<button class="icon-btn" onclick="editPatient('${p.id}')" title="Editar">✎</button>` : ""}
-          ${["admin", "accounting"].includes(currentAccess.role) ? `<button class="icon-btn finance-patient-btn" onclick="openPatientFinance('${p.id}')" title="Ver cuenta">$</button>` : ""}
-          ${currentAccess.role === "admin" ? `<button class="icon-btn" onclick="deletePatient('${p.id}')" title="Eliminar">⌫</button>` : ""}
+          ${["admin", "reception", "clinical"].includes(currentAccess.role) ? H`<button class="icon-btn" onclick="editPatient('${p.id}')" title="Editar">✎</button>` : ""}
+          ${["admin", "accounting"].includes(currentAccess.role) ? H`<button class="icon-btn finance-patient-btn" onclick="openPatientFinance('${p.id}')" title="Ver cuenta">$</button>` : ""}
+          ${currentAccess.role === "admin" ? H`<button class="icon-btn" onclick="deletePatient('${p.id}')" title="Eliminar">⌫</button>` : ""}
         </div>
       </td>
     </tr>
-  `).join("") : `<tr><td class="empty" colspan="7">No se encontraron pacientes.</td></tr>`;
+  `).join("") : H`<tr><td class="empty" colspan="7">No se encontraron pacientes.</td></tr>`;
 }
 
-const taskTypes = { payment: "Cobro", document: "Documento", call: "Llamada", insurance: "Seguro", follow_up: "Seguimiento", other: "Otro" };
+const taskTypes = ClinicI18n.labels({ payment: "Cobro", document: "Documento", call: "Llamada", insurance: "Seguro", follow_up: "Seguimiento", other: "Otro" });
 function taskIsOverdue(task) { return task.status !== "completed" && task.dueDate && new Date(task.dueDate) < new Date(); }
 function renderTaskNavCount() {
   const node = $("#taskNavCount"); if (!node) return;
@@ -1066,27 +1071,27 @@ function renderTasks() {
     return `${task.title} ${task.description || ""} ${p?.name || ""}`.toLowerCase().includes(query);
   }).sort((a, b) => (taskIsOverdue(b) - taskIsOverdue(a)) || new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"));
   const open = state.tasks.filter((task) => task.status !== "completed").length, overdue = state.tasks.filter(taskIsOverdue).length, done = state.tasks.filter((task) => task.status === "completed").length;
-  $("#taskSummary").innerHTML = `<div><small>Pendientes</small><strong>${open}</strong></div><div class="overdue"><small>Vencidas</small><strong>${overdue}</strong></div><div><small>Completadas</small><strong>${done}</strong></div>`;
-  board.innerHTML = rows.length ? rows.map((task) => { const p = patient(task.patientId); return `<article class="task-card priority-${task.priority || "normal"} ${taskIsOverdue(task) ? "is-overdue" : ""} ${task.status === "completed" ? "is-completed" : ""}"><button class="task-check" onclick="toggleTask('${task.id}')" title="${task.status === "completed" ? "Reabrir" : "Completar"}">${task.status === "completed" ? "✓" : ""}</button><div><div class="task-card-meta"><span class="badge blue">${taskTypes[task.type] || "Tarea"}</span>${taskIsOverdue(task) ? `<span class="badge red">Vencida</span>` : ""}<span>${task.priority === "urgent" ? "Urgente" : task.priority === "high" ? "Alta" : "Normal"}</span></div><h3>${escapeHtml(task.title)}</h3><p>${escapeHtml(task.description || "Sin descripción")}</p><small>${p ? `<button onclick="openPatientRecord('${p.id}')">${escapeHtml(p.name)}</button> · ` : ""}${task.dueDate ? `Vence ${new Date(task.dueDate).toLocaleString("es-US")}` : "Sin fecha límite"}</small></div><div class="row-actions"><button class="icon-btn" onclick="openTaskDialog('${task.id}')">✎</button><button class="icon-btn" onclick="deleteTask('${task.id}')">⌫</button></div></article>`; }).join("") : `<div class="empty">No hay tareas que coincidan con los filtros.</div>`;
+  $("#taskSummary").innerHTML = H`<div><small>Pendientes</small><strong>${open}</strong></div><div class="overdue"><small>Vencidas</small><strong>${overdue}</strong></div><div><small>Completadas</small><strong>${done}</strong></div>`;
+  board.innerHTML = rows.length ? rows.map((task) => { const p = patient(task.patientId); return H`<article class="task-card priority-${task.priority || "normal"} ${taskIsOverdue(task) ? "is-overdue" : ""} ${task.status === "completed" ? "is-completed" : ""}"><button class="task-check" onclick="toggleTask('${task.id}')" title="${task.status === "completed" ? "Reabrir" : T("Completar")}">${task.status === "completed" ? "✓" : ""}</button><div><div class="task-card-meta"><span class="badge blue">${taskTypes[task.type] || "Tarea"}</span>${taskIsOverdue(task) ? H`<span class="badge red">Vencida</span>` : ""}<span>${task.priority === "urgent" ? T("Urgente") : task.priority === "high" ? T("Alta") : T("Normal")}</span></div><h3>${escapeHtml(task.title)}</h3><p>${escapeHtml(task.description || T("Sin descripción"))}</p><small>${p ? H`<button onclick="openPatientRecord('${p.id}')">${escapeHtml(p.name)}</button> · ` : ""}${task.dueDate ? S`Vence ${new Date(task.dueDate).toLocaleString(ClinicI18n.locale)}` : T("Sin fecha límite")}</small></div><div class="row-actions"><button class="icon-btn" onclick="openTaskDialog('${task.id}')">✎</button><button class="icon-btn" onclick="deleteTask('${task.id}')">⌫</button></div></article>`; }).join("") : H`<div class="empty">No hay tareas que coincidan con los filtros.</div>`;
 }
 function openTaskDialog(id = "", patientId = "") {
   const task = state.tasks.find((item) => item.id === id);
-  $("#taskDialogTitle").textContent = task ? "Editar tarea" : "Nueva tarea";
+  $("#taskDialogTitle").textContent = task ? T("Editar tarea") : T("Nueva tarea");
   $("#taskId").value = task?.id || "";
-  $("#taskPatient").innerHTML = `<option value="">Sin paciente</option>${state.patients.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}`;
+  $("#taskPatient").innerHTML = H`<option value="">Sin paciente</option>${state.patients.map((p) => H`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}`;
   $("#taskPatient").value = task?.patientId || patientId || "";
   enablePatientSelectSearch($("#taskPatient"));
   $("#taskTitle").value = task?.title || ""; $("#taskType").value = task?.type || "follow_up"; $("#taskDueDate").value = task?.dueDate || ""; $("#taskPriority").value = task?.priority || "normal"; $("#taskDescription").value = task?.description || "";
   $("#taskDialog").showModal(); requestAnimationFrame(() => $("#taskTitle").focus());
 }
 async function toggleTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; await saveTask({ id, status: task.status === "completed" ? "open" : "completed", completedAt: task.status === "completed" ? "" : new Date().toISOString(), updatedAt: new Date().toISOString() }); }
-async function deleteTask(id) { if (!confirm("¿Eliminar esta tarea?")) return; try { await deleteTaskEntry(id); toast("Tarea eliminada"); } catch (error) { console.error(error); toast("No se pudo eliminar la tarea"); } }
+async function deleteTask(id) { if (!confirm(T("¿Eliminar esta tarea?"))) return; try { await deleteTaskEntry(id); toast(T("Tarea eliminada")); } catch (error) { console.error(error); toast(T("No se pudo eliminar la tarea")); } }
 
 function renderVisitOptions() {
   const selectedVisitPatient = $("#visitPatient").value;
   const selectedAppointmentPatient = $("#appointmentPatient")?.value;
-  $("#visitPatient").innerHTML = state.patients.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
-  if ($("#appointmentPatient")) $("#appointmentPatient").innerHTML = state.patients.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  $("#visitPatient").innerHTML = state.patients.map((p) => H`<option value="${p.id}">${p.name}</option>`).join("");
+  if ($("#appointmentPatient")) $("#appointmentPatient").innerHTML = state.patients.map((p) => H`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
   if (state.patients.some((p) => p.id === selectedVisitPatient)) $("#visitPatient").value = selectedVisitPatient;
   if (selectedAppointmentPatient && state.patients.some((p) => p.id === selectedAppointmentPatient)) $("#appointmentPatient").value = selectedAppointmentPatient;
   enablePatientSelectSearch($("#visitPatient"));
@@ -1101,7 +1106,7 @@ function patientHasAlert(p) {
 function patientAlertDateLabel(p) {
   if (!p?.patientAlertDate) return "Sin fecha";
   const overdue = p.patientAlertDate < localDateValue();
-  return `${overdue ? "Vencida · " : "Seguimiento · "}${new Date(`${p.patientAlertDate}T12:00:00`).toLocaleDateString("es-US")}`;
+  return S`${overdue ? "Vencida · " : "Seguimiento · "}${new Date(`${p.patientAlertDate}T12:00:00`).toLocaleDateString(ClinicI18n.locale)}`;
 }
 
 function openPatientRecord(id, tabName = "summary") {
@@ -1145,22 +1150,22 @@ function renderPatientRecord() {
   const initials = p.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const canEditPatient = ["admin", "reception", "clinical"].includes(currentAccess.role);
   const canCreateVisit = ["admin", "clinical"].includes(currentAccess.role);
-  $("#patientRecordHeader").innerHTML = `<button class="btn light" onclick="showPage('patients')">← Pacientes</button><div class="patient-record-avatar">${escapeHtml(initials)}</div><div class="patient-record-identity"><small>Expediente del paciente</small><h2>${escapeHtml(p.name)}</h2><span>${escapeHtml([p.document, p.phone, p.email].filter(Boolean).join(" · ") || "Información de contacto no indicada")}</span></div><div class="patient-record-actions"><button class="btn light" onclick="openCommunicationDialog('${p.id}')">Comunicar</button>${canEditPatient ? `<button class="btn light" onclick="editPatient('${p.id}')">Editar</button>` : ""}${canCreateVisit ? `<button class="btn primary" onclick="openVisitDialog({patientId:'${p.id}'})">Nueva consulta</button>` : ""}</div>`;
+  $("#patientRecordHeader").innerHTML = H`<button class="btn light" onclick="showPage('patients')">← Pacientes</button><div class="patient-record-avatar">${escapeHtml(initials)}</div><div class="patient-record-identity"><small>Expediente del paciente</small><h2>${escapeHtml(p.name)}</h2><span>${escapeHtml([p.document, p.phone, p.email].filter(Boolean).join(" · ") || T("Información de contacto no indicada"))}</span></div><div class="patient-record-actions"><button class="btn light" onclick="openCommunicationDialog('${p.id}')">Comunicar</button>${canEditPatient ? H`<button class="btn light" onclick="editPatient('${p.id}')">Editar</button>` : ""}${canCreateVisit ? H`<button class="btn primary" onclick="openVisitDialog({patientId:'${p.id}'})">Nueva consulta</button>` : ""}</div>`;
   applyRoleAccess();
   $$('[data-patient-record-tab]').forEach((button) => button.classList.toggle("active", button.dataset.patientRecordTab === activePatientRecordTab));
-  const summary = `${patientHasAlert(p) ? `<div class="patient-finance-alert"><div><strong>📌 ${escapeHtml(p.patientAlertMessage)}</strong><span>${patientAlertDateLabel(p)}</span></div><button class="btn light" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="patient-record-metrics"><div><small>Consultas</small><strong>${visits.length}</strong></div><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div><div class="patient-record-grid"><article><h3>Información</h3><dl><div><dt>Nacimiento</dt><dd>${fmtBirthDate(p.birthDate)}</dd></div><div><dt>Edad</dt><dd>${escapeHtml(p.age || "—")}</dd></div><div><dt>Idioma</dt><dd>${escapeHtml(p.language || "—")}</dd></div><div><dt>Forma de pago</dt><dd>${escapeHtml(payerLabel(p))}</dd></div><div><dt>Seguro</dt><dd>${escapeHtml(p.insuranceCompany || "—")}</dd></div><div><dt>Estado</dt><dd>${escapeHtml({ active: "Activo", new: "Nuevo", inactive: "Inactivo", lost: "No regresó" }[p.lifecycle] || "Activo")}</dd></div></dl></article><article><h3>Notas</h3><p>${escapeHtml(p.notes || "No hay notas generales para este paciente.")}</p></article></div>`;
-  const visitHtml = visits.length ? `<div class="patient-record-list">${visits.map((visit) => `<div><span><strong>${fmtDate(visit.date)} · ${escapeHtml(visit.reason || "Consulta")}</strong><small>${escapeHtml(visit.doctor || "Sin profesional")} · ${escapeHtml(visit.roomName || roomById(visit.roomId)?.name || "Room sin asignar")} · ${escapeHtml((visit.diagnoses || []).join(", ") || invoiceNumber(visit))}</small></span><span><strong>${money(visit.total)}</strong><small>Balance ${money(balance(visit))}</small></span>${["admin", "clinical"].includes(currentAccess.role) ? `<button class="btn light" onclick="editVisit('${visit.id}')">Abrir</button>` : ""}</div>`).join("")}</div>` : `<div class="empty">Este paciente todavía no tiene consultas.</div>`;
-  const documentHtml = `<div class="patient-record-section-head"><h3>Formularios digitales</h3><button class="btn primary" onclick="assignDigitalForm('${p.id}')">+ Asignar formulario</button></div>${digitalForms.length ? `<div class="patient-record-list">${digitalForms.map((entry) => `<div><span><strong>${escapeHtml(entry.templateName || "Formulario")}</strong><small>${formCategoryLabels[entry.category] || "Formulario"} · ${fmtDate(entry.updatedAt || entry.createdAt)}</small></span><span class="badge ${entry.status === "completed" ? "green" : "red"}">${entry.status === "completed" ? "Completado" : "Pendiente"}</span><button class="btn light" onclick="openPatientDigitalForm('${entry.id}')">${entry.status === "completed" ? "Ver respuestas" : "Completar"}</button></div>`).join("")}</div>` : `<div class="empty">No hay formularios digitales asignados.</div>`}<div class="patient-record-section-head section-spaced"><h3>Documentos y firmas</h3></div>${docs.length ? `<div class="patient-record-list">${docs.map((doc) => `<div><span><strong>${escapeHtml(doc.name)}</strong><small>${fmtDate(doc.visit.date)} · ${doc.status === "signed" ? `Firmado por ${escapeHtml(doc.signedBy)}` : "Pendiente de firma"}</small></span><span class="badge ${doc.status === "signed" ? "green" : "red"}">${doc.status === "signed" ? "Firmado" : "Pendiente"}</span>${doc.completedPdfUrl ? `<a class="btn primary" href="${escapeHtml(doc.completedPdfUrl)}" target="_blank" rel="noopener">PDF completado</a><a class="btn light" href="${escapeHtml(doc.completedPdfUrl)}" download>Descargar</a>` : doc.url ? `<a class="btn light" href="${escapeHtml(doc.url)}" target="_blank" rel="noopener">Ver original</a>` : ""}</div>`).join("")}</div>` : `<div class="empty">No hay documentos asignados.</div>`}`;
-  const paymentHtml = `<div class="patient-record-metrics"><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div>${payments.length ? `<div class="patient-record-list">${payments.map((entry) => `<div><span><strong>${fmtDate(entry.date)} · ${escapeHtml(paymentMethodDetail(entry))}</strong><small>${escapeHtml(entry.reference || "Sin referencia")}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}</small></span><strong>${money(entry.amount)}</strong><button class="btn light" onclick="openInvoice('${entry.visitId}')">Factura</button></div>`).join("")}</div>` : `<div class="empty">No hay abonos posteriores registrados.</div>`}`;
-  const alertHtml = `${patientHasAlert(p) ? `<div class="patient-alert-detail"><span>📌</span><div><h3>${escapeHtml(p.patientAlertMessage)}</h3><p>${patientAlertDateLabel(p)}</p></div><button class="btn primary" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="patient-record-section-head"><h3>Tareas y seguimientos</h3><button class="btn primary" onclick="openTaskDialog('', '${p.id}')">+ Agregar tarea</button></div>${patientTasks.length ? `<div class="patient-record-list">${patientTasks.map((task) => `<div><span><strong>${escapeHtml(task.title)}</strong><small>${taskTypes[task.type] || "Tarea"} · ${task.dueDate ? new Date(task.dueDate).toLocaleString("es-US") : "Sin fecha"}</small></span><span class="badge ${task.status === "completed" ? "green" : taskIsOverdue(task) ? "red" : "blue"}">${task.status === "completed" ? "Completada" : taskIsOverdue(task) ? "Vencida" : "Pendiente"}</span><button class="btn light" onclick="toggleTask('${task.id}')">${task.status === "completed" ? "Reabrir" : "Completar"}</button></div>`).join("")}</div>` : `<div class="empty">No hay tareas para este paciente.</div>`}`;
-  const communicationHtml = `<div class="patient-record-section-head"><h3>Historial de comunicaciones</h3><button class="btn primary" onclick="openCommunicationDialog('${p.id}')">+ Registrar contacto</button></div>${communications.length ? `<div class="communication-history">${communications.map((entry) => `<article><span class="communication-channel">${communicationIcons[entry.channel] || "●"}</span><div><strong>${escapeHtml(entry.subject)}</strong><p>${escapeHtml(entry.notes || "Sin notas")}</p><small>${entry.direction === "inbound" ? "Entrante" : "Saliente"} · ${communicationChannelLabels[entry.channel] || entry.channel} · ${fmtDate(entry.createdAt)} · ${escapeHtml(entry.userEmail || "Equipo")}</small></div>${communicationActionHtml(entry, p)}</article>`).join("")}</div>` : `<div class="empty">Todavía no se han registrado comunicaciones.</div>`}`;
-  const clinicalHtml = `<div class="patient-record-section-head"><div><h3>Resumen clínico</h3><small>Actualizado ${clinicalRecord.updatedAt ? fmtDate(clinicalRecord.updatedAt) : "—"}</small></div><button class="btn primary" onclick="openClinicalRecordDialog('${p.id}')">Editar resumen</button></div>${(clinicalRecord.allergies || []).length ? `<div class="clinical-allergy-alert"><strong>⚠ Alergias</strong><span>${escapeHtml(clinicalRecord.allergies.join(" · "))}</span></div>` : `<div class="clinical-no-allergies">Sin alergias registradas</div>`}${latestVitalsVisit ? `<div class="latest-vitals"><div><small>Presión</small><strong>${escapeHtml(latestVitalsVisit.vitals.bloodPressure || "—")}</strong></div><div><small>Pulso</small><strong>${escapeHtml(latestVitalsVisit.vitals.pulse || "—")}</strong></div><div><small>Temperatura</small><strong>${latestVitalsVisit.vitals.temperature ? `${escapeHtml(latestVitalsVisit.vitals.temperature)} °F` : "—"}</strong></div><div><small>Peso</small><strong>${latestVitalsVisit.vitals.weight ? `${escapeHtml(latestVitalsVisit.vitals.weight)} lb` : "—"}</strong></div><div><small>SpO₂</small><strong>${latestVitalsVisit.vitals.oxygen ? `${escapeHtml(latestVitalsVisit.vitals.oxygen)}%` : "—"}</strong></div><div><small>Fecha</small><strong>${fmtDate(latestVitalsVisit.date)}</strong></div></div>` : ""}<div class="clinical-summary-grid">${clinicalListCard("Medicamentos activos", clinicalRecord.medications)}${clinicalListCard("Problemas activos", clinicalRecord.conditions)}${clinicalListCard("Cirugías y hospitalizaciones", clinicalRecord.surgeries)}${clinicalListCard("Inmunizaciones", clinicalRecord.immunizations)}<article><h4>Tipo de sangre</h4><p>${escapeHtml(clinicalRecord.bloodType || "No indicado")}</p></article><article><h4>Antecedentes familiares</h4><p>${escapeHtml(clinicalRecord.familyHistory || "No registrados")}</p></article><article><h4>Historia social</h4><p>${escapeHtml(clinicalRecord.socialHistory || "No registrada")}</p></article></div>`;
-  const timelineHtml = timeline.length ? `<div class="patient-timeline">${timeline.map((entry) => `<div class="timeline-event"><span>${activityIcons[entry.entityType] || "•"}</span><div><strong>${escapeHtml(entry.title)}</strong><p>${escapeHtml(entry.detail || "")}</p><small>${new Date(entry.createdAt).toLocaleString("es-US")}${entry.userEmail ? ` · ${escapeHtml(entry.userEmail)}` : ""}</small></div></div>`).join("")}</div>` : `<div class="empty">No hay actividad registrada.</div>`;
+  const summary = H`${patientHasAlert(p) ? H`<div class="patient-finance-alert"><div><strong>📌 ${escapeHtml(p.patientAlertMessage)}</strong><span>${patientAlertDateLabel(p)}</span></div><button class="btn light" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="patient-record-metrics"><div><small>Consultas</small><strong>${visits.length}</strong></div><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div><div class="patient-record-grid"><article><h3>Información</h3><dl><div><dt>Nacimiento</dt><dd>${fmtBirthDate(p.birthDate)}</dd></div><div><dt>Edad</dt><dd>${escapeHtml(p.age || "—")}</dd></div><div><dt>Idioma</dt><dd>${escapeHtml(p.language || "—")}</dd></div><div><dt>Forma de pago</dt><dd>${escapeHtml(payerLabel(p))}</dd></div><div><dt>Seguro</dt><dd>${escapeHtml(p.insuranceCompany || "—")}</dd></div><div><dt>Estado</dt><dd>${escapeHtml({ active: "Activo", new: "Nuevo", inactive: "Inactivo", lost: "No regresó" }[p.lifecycle] || T("Activo"))}</dd></div></dl></article><article><h3>Notas</h3><p>${escapeHtml(p.notes || T("No hay notas generales para este paciente."))}</p></article></div>`;
+  const visitHtml = visits.length ? H`<div class="patient-record-list">${visits.map((visit) => H`<div><span><strong>${fmtDate(visit.date)} · ${escapeHtml(visit.reason || T("Consulta"))}</strong><small>${escapeHtml(visit.doctor || T("Sin profesional"))} · ${escapeHtml(visit.roomName || roomById(visit.roomId)?.name || T("Room sin asignar"))} · ${escapeHtml((visit.diagnoses || []).join(", ") || invoiceNumber(visit))}</small></span><span><strong>${money(visit.total)}</strong><small>Balance ${money(balance(visit))}</small></span>${["admin", "clinical"].includes(currentAccess.role) ? H`<button class="btn light" onclick="editVisit('${visit.id}')">Abrir</button>` : ""}</div>`).join("")}</div>` : H`<div class="empty">Este paciente todavía no tiene consultas.</div>`;
+  const documentHtml = H`<div class="patient-record-section-head"><h3>Formularios digitales</h3><button class="btn primary" onclick="assignDigitalForm('${p.id}')">+ Asignar formulario</button></div>${digitalForms.length ? H`<div class="patient-record-list">${digitalForms.map((entry) => H`<div><span><strong>${escapeHtml(entry.templateName || T("Formulario"))}</strong><small>${formCategoryLabels[entry.category] || T("Formulario")} · ${fmtDate(entry.updatedAt || entry.createdAt)}</small></span><span class="badge ${entry.status === "completed" ? "green" : "red"}">${entry.status === "completed" ? T("Completado") : T("Pendiente")}</span><button class="btn light" onclick="openPatientDigitalForm('${entry.id}')">${entry.status === "completed" ? T("Ver respuestas") : T("Completar")}</button></div>`).join("")}</div>` : H`<div class="empty">No hay formularios digitales asignados.</div>`}<div class="patient-record-section-head section-spaced"><h3>Documentos y firmas</h3></div>${docs.length ? H`<div class="patient-record-list">${docs.map((doc) => H`<div><span><strong>${escapeHtml(doc.name)}</strong><small>${fmtDate(doc.visit.date)} · ${doc.status === "signed" ? S`Firmado por ${escapeHtml(doc.signedBy)}` : T("Pendiente de firma")}</small></span><span class="badge ${doc.status === "signed" ? "green" : "red"}">${doc.status === "signed" ? "Firmado" : T("Pendiente")}</span>${doc.completedPdfUrl ? H`<a class="btn primary" href="${escapeHtml(doc.completedPdfUrl)}" target="_blank" rel="noopener">PDF completado</a><a class="btn light" href="${escapeHtml(doc.completedPdfUrl)}" download>Descargar</a>` : doc.url ? H`<a class="btn light" href="${escapeHtml(doc.url)}" target="_blank" rel="noopener">Ver original</a>` : ""}</div>`).join("")}</div>` : H`<div class="empty">No hay documentos asignados.</div>`}`;
+  const paymentHtml = H`<div class="patient-record-metrics"><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div>${payments.length ? H`<div class="patient-record-list">${payments.map((entry) => H`<div><span><strong>${fmtDate(entry.date)} · ${escapeHtml(paymentMethodDetail(entry))}</strong><small>${escapeHtml(entry.reference || T("Sin referencia"))}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}</small></span><strong>${money(entry.amount)}</strong><button class="btn light" onclick="openInvoice('${entry.visitId}')">Factura</button></div>`).join("")}</div>` : H`<div class="empty">No hay abonos posteriores registrados.</div>`}`;
+  const alertHtml = H`${patientHasAlert(p) ? H`<div class="patient-alert-detail"><span>📌</span><div><h3>${escapeHtml(p.patientAlertMessage)}</h3><p>${patientAlertDateLabel(p)}</p></div><button class="btn primary" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="patient-record-section-head"><h3>Tareas y seguimientos</h3><button class="btn primary" onclick="openTaskDialog('', '${p.id}')">+ Agregar tarea</button></div>${patientTasks.length ? H`<div class="patient-record-list">${patientTasks.map((task) => H`<div><span><strong>${escapeHtml(task.title)}</strong><small>${taskTypes[task.type] || "Tarea"} · ${task.dueDate ? new Date(task.dueDate).toLocaleString(ClinicI18n.locale) : T("Sin fecha")}</small></span><span class="badge ${task.status === "completed" ? "green" : taskIsOverdue(task) ? "red" : "blue"}">${task.status === "completed" ? T("Completada") : taskIsOverdue(task) ? T("Vencida") : T("Pendiente")}</span><button class="btn light" onclick="toggleTask('${task.id}')">${task.status === "completed" ? "Reabrir" : T("Completar")}</button></div>`).join("")}</div>` : H`<div class="empty">No hay tareas para este paciente.</div>`}`;
+  const communicationHtml = H`<div class="patient-record-section-head"><h3>Historial de comunicaciones</h3><button class="btn primary" onclick="openCommunicationDialog('${p.id}')">+ Registrar contacto</button></div>${communications.length ? H`<div class="communication-history">${communications.map((entry) => H`<article><span class="communication-channel">${communicationIcons[entry.channel] || "●"}</span><div><strong>${escapeHtml(entry.subject)}</strong><p>${escapeHtml(entry.notes || T("Sin notas"))}</p><small>${entry.direction === "inbound" ? T("Entrante") : T("Saliente")} · ${communicationChannelLabels[entry.channel] || entry.channel} · ${fmtDate(entry.createdAt)} · ${escapeHtml(entry.userEmail || "Equipo")}</small></div>${communicationActionHtml(entry, p)}</article>`).join("")}</div>` : H`<div class="empty">Todavía no se han registrado comunicaciones.</div>`}`;
+  const clinicalHtml = H`<div class="patient-record-section-head"><div><h3>Resumen clínico</h3><small>Actualizado ${clinicalRecord.updatedAt ? fmtDate(clinicalRecord.updatedAt) : "—"}</small></div><button class="btn primary" onclick="openClinicalRecordDialog('${p.id}')">Editar resumen</button></div>${(clinicalRecord.allergies || []).length ? H`<div class="clinical-allergy-alert"><strong>⚠ Alergias</strong><span>${escapeHtml(clinicalRecord.allergies.join(" · "))}</span></div>` : H`<div class="clinical-no-allergies">Sin alergias registradas</div>`}${latestVitalsVisit ? H`<div class="latest-vitals"><div><small>Presión</small><strong>${escapeHtml(latestVitalsVisit.vitals.bloodPressure || "—")}</strong></div><div><small>Pulso</small><strong>${escapeHtml(latestVitalsVisit.vitals.pulse || "—")}</strong></div><div><small>Temperatura</small><strong>${latestVitalsVisit.vitals.temperature ? `${escapeHtml(latestVitalsVisit.vitals.temperature)} °F` : "—"}</strong></div><div><small>Peso</small><strong>${latestVitalsVisit.vitals.weight ? `${escapeHtml(latestVitalsVisit.vitals.weight)} lb` : "—"}</strong></div><div><small>SpO₂</small><strong>${latestVitalsVisit.vitals.oxygen ? `${escapeHtml(latestVitalsVisit.vitals.oxygen)}%` : "—"}</strong></div><div><small>Fecha</small><strong>${fmtDate(latestVitalsVisit.date)}</strong></div></div>` : ""}<div class="clinical-summary-grid">${clinicalListCard("Medicamentos activos", clinicalRecord.medications)}${clinicalListCard("Problemas activos", clinicalRecord.conditions)}${clinicalListCard("Cirugías y hospitalizaciones", clinicalRecord.surgeries)}${clinicalListCard("Inmunizaciones", clinicalRecord.immunizations)}<article><h4>Tipo de sangre</h4><p>${escapeHtml(clinicalRecord.bloodType || T("No indicado"))}</p></article><article><h4>Antecedentes familiares</h4><p>${escapeHtml(clinicalRecord.familyHistory || T("No registrados"))}</p></article><article><h4>Historia social</h4><p>${escapeHtml(clinicalRecord.socialHistory || T("No registrada"))}</p></article></div>`;
+  const timelineHtml = timeline.length ? H`<div class="patient-timeline">${timeline.map((entry) => H`<div class="timeline-event"><span>${activityIcons[entry.entityType] || "•"}</span><div><strong>${escapeHtml(entry.title)}</strong><p>${escapeHtml(entry.detail || "")}</p><small>${new Date(entry.createdAt).toLocaleString(ClinicI18n.locale)}${entry.userEmail ? ` · ${escapeHtml(entry.userEmail)}` : ""}</small></div></div>`).join("")}</div>` : H`<div class="empty">No hay actividad registrada.</div>`;
   $("#patientRecordContent").innerHTML = { summary, visits: visitHtml, documents: documentHtml, payments: paymentHtml, clinical: clinicalHtml, alerts: alertHtml, communications: communicationHtml, timeline: timelineHtml }[activePatientRecordTab] || summary;
 }
 
 function clinicalListCard(title, items = []) {
-  return `<article><h4>${escapeHtml(title)}</h4>${items?.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p>No registrado</p>`}</article>`;
+  return H`<article><h4>${escapeHtml(title)}</h4>${items?.length ? H`<ul>${items.map((item) => H`<li>${escapeHtml(item)}</li>`).join("")}</ul>` : H`<p>No registrado</p>`}</article>`;
 }
 
 function linesFromText(value) {
@@ -1181,7 +1186,7 @@ async function saveClinicalRecord() {
   const data = { id: patientId, patientId, bloodType: $("#clinicalBloodType").value, allergies: linesFromText($("#clinicalAllergies").value), medications: linesFromText($("#clinicalMedications").value), conditions: linesFromText($("#clinicalConditions").value), surgeries: linesFromText($("#clinicalSurgeries").value), familyHistory: $("#clinicalFamilyHistory").value.trim(), socialHistory: $("#clinicalSocialHistory").value.trim(), immunizations: linesFromText($("#clinicalImmunizations").value), createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), updatedBy: auth.currentUser.uid };
   await getCollectionRef("clinicalRecords").doc(patientId).set(data, { merge: true });
   recordActivity({ action: existing ? "updated" : "created", entityType: "clinical", entityId: patientId, patientId, title: "Resumen clínico actualizado", detail: `${data.allergies.length} alergia(s) · ${data.medications.length} medicamento(s) activo(s)` }).catch(console.error);
-  $("#clinicalRecordDialog").close(); toast("Resumen clínico guardado.");
+  $("#clinicalRecordDialog").close(); toast(T("Resumen clínico guardado."));
 }
 
 function selectPatientRecordTab(tabName) {
@@ -1200,8 +1205,8 @@ async function resolvePatientAlert(id) {
     if ($("#visitDialog")?.classList.contains("active") && $("#visitPatient")?.value === id) renderVisitPatientBanner();
     if ($("#patientFinanceDialog")?.open) openPatientFinance(id);
     if (activePatientRecordId === id && $("#patientRecord")?.classList.contains("active")) renderPatientRecord();
-    toast("Alerta marcada como resuelta");
-  } catch (error) { console.error(error); toast("No se pudo resolver la alerta"); }
+    toast(T("Alerta marcada como resuelta"));
+  } catch (error) { console.error(error); toast(T("No se pudo resolver la alerta")); }
 }
 
 function appointmentDoctors() {
@@ -1216,11 +1221,11 @@ function renderAppointmentDoctorOptions() {
   const configuredDoctors = [...new Set((state.settings.doctors || []).map((name) => String(name).trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "es"));
   const datalist = $("#appointmentDoctorOptions");
-  if (datalist) datalist.innerHTML = configuredDoctors.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+  if (datalist) datalist.innerHTML = configuredDoctors.map((name) => H`<option value="${escapeHtml(name)}"></option>`).join("");
   const filter = $("#appointmentDoctorFilter");
   if (!filter) return;
   const selected = filter.value;
-  filter.innerHTML = `<option value="">Todos los profesionales</option>${doctors.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
+  filter.innerHTML = H`<option value="">Todos los profesionales</option>${doctors.map((name) => H`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
   if (doctors.includes(selected)) filter.value = selected;
 
   [
@@ -1231,8 +1236,8 @@ function renderAppointmentDoctorOptions() {
   ].forEach(([selector, emptyLabel]) => {
     const select = $(selector); if (!select) return;
     const current = select.value;
-    select.innerHTML = `<option value="">${emptyLabel}</option>${configuredDoctors.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
-    if (current && !configuredDoctors.includes(current)) select.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(current)}">${escapeHtml(current)} (histórico)</option>`);
+    select.innerHTML = H`<option value="">${emptyLabel}</option>${configuredDoctors.map((name) => H`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
+    if (current && !configuredDoctors.includes(current)) select.insertAdjacentHTML("beforeend", H`<option value="${escapeHtml(current)}">${escapeHtml(current)} (histórico)</option>`);
     select.value = current;
   });
 }
@@ -1260,17 +1265,17 @@ function appointmentMatchesFilters(item, query, statusFilter, doctorFilter) {
 function appointmentCardContent(item, compact = false) {
   const p = patient(item.patientId);
   const status = appointmentStatus(item.status);
-  const time = new Date(item.date).toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" });
-  if (compact) return `<button type="button" class="calendar-event status-${item.status}" onclick="event.stopPropagation(); editAppointment('${item.id}')" title="${escapeHtml(`${time} · ${p?.name || "Paciente"} · ${item.reason || "Cita"}`)}"><strong>${time} ${escapeHtml(p?.name || "Paciente")}</strong><span>${escapeHtml(item.reason || "Cita")} · ${item.duration || 30} min</span></button>`;
-  return `<article class="appointment-card status-${item.status}">
+  const time = new Date(item.date).toLocaleTimeString(ClinicI18n.locale, { hour: "2-digit", minute: "2-digit" });
+  if (compact) return H`<button type="button" class="calendar-event status-${item.status}" onclick="event.stopPropagation(); editAppointment('${item.id}')" title="${escapeHtml(`${time} · ${p?.name || T("Paciente")} · ${item.reason || T("Cita")}`)}"><strong>${time} ${escapeHtml(p?.name || T("Paciente"))}</strong><span>${escapeHtml(item.reason || T("Cita"))} · ${item.duration || 30} min</span></button>`;
+  return H`<article class="appointment-card status-${item.status}">
     <div class="appointment-time"><strong>${time}</strong><span>${item.duration || 30} min</span></div>
-    <div class="appointment-main"><div><h3>${escapeHtml(p?.name || "Paciente eliminado")}</h3><p>${escapeHtml(item.reason || "Sin motivo")}</p></div><span class="badge ${status.color}">${status.label}</span><div class="appointment-meta"><span>${escapeHtml(item.type || "Presencial")}</span><span>${escapeHtml(item.doctor || "Sin profesional")}</span><span>${escapeHtml(item.roomName || roomById(item.roomId)?.name || "Room sin asignar")}</span><span>${escapeHtml(p?.phone || "Sin teléfono")}</span></div></div>
+    <div class="appointment-main"><div><h3>${escapeHtml(p?.name || T("Paciente eliminado"))}</h3><p>${escapeHtml(item.reason || T("Sin motivo"))}</p></div><span class="badge ${status.color}">${status.label}</span><div class="appointment-meta"><span>${escapeHtml(item.type || T("Presencial"))}</span><span>${escapeHtml(item.doctor || T("Sin profesional"))}</span><span>${escapeHtml(item.roomName || roomById(item.roomId)?.name || T("Room sin asignar"))}</span><span>${escapeHtml(p?.phone || T("Sin teléfono"))}</span></div></div>
     <div class="appointment-actions">
-      ${item.status === "scheduled" ? `<button class="btn light" onclick="setAppointmentStatus('${item.id}','confirmed')">Confirmar</button>` : ""}
-      ${["scheduled", "confirmed"].includes(item.status) ? `<button class="btn light" onclick="setAppointmentStatus('${item.id}','arrived')">Llegó</button>` : ""}
-      ${!["completed", "cancelled", "no_show"].includes(item.status) ? `<button class="btn primary" onclick="startAppointmentVisit('${item.id}')">Iniciar consulta</button>` : ""}
+      ${item.status === "scheduled" ? H`<button class="btn light" onclick="setAppointmentStatus('${item.id}','confirmed')">Confirmar</button>` : ""}
+      ${["scheduled", "confirmed"].includes(item.status) ? H`<button class="btn light" onclick="setAppointmentStatus('${item.id}','arrived')">Llegó</button>` : ""}
+      ${!["completed", "cancelled", "no_show"].includes(item.status) ? H`<button class="btn primary" onclick="startAppointmentVisit('${item.id}')">Iniciar consulta</button>` : ""}
       <button class="icon-btn" onclick="editAppointment('${item.id}')" title="Editar">✎</button>
-      ${!["completed", "cancelled"].includes(item.status) ? `<button class="icon-btn danger-icon" onclick="cancelAppointment('${item.id}')" title="Cancelar cita">×</button>` : ""}
+      ${!["completed", "cancelled"].includes(item.status) ? H`<button class="icon-btn danger-icon" onclick="cancelAppointment('${item.id}')" title="Cancelar cita">×</button>` : ""}
     </div></article>`;
 }
 
@@ -1278,23 +1283,23 @@ function renderDayCalendar(rows, dateValue) {
   const active = rows.filter((item) => !["cancelled", "no_show"].includes(item.status));
   const openHour = Number((state.settings.scheduleOpenTime || "08:00").split(":")[0]); const closeHour = Number((state.settings.scheduleCloseTime || "18:00").split(":")[0]);
   const hours = Array.from({ length: Math.max(1, closeHour - openHour + 1) }, (_, index) => index + openHour);
-  return `<div class="day-calendar"><div class="calendar-day-title"><strong>${new Date(`${dateValue}T12:00:00`).toLocaleDateString("es-US", { weekday: "long", day: "numeric", month: "long" })}</strong><span>${active.length} cita(s) activa(s)</span></div>${hours.map((hour) => {
+  return H`<div class="day-calendar"><div class="calendar-day-title"><strong>${new Date(`${dateValue}T12:00:00`).toLocaleDateString(ClinicI18n.locale, { weekday: "long", day: "numeric", month: "long" })}</strong><span>${active.length} cita(s) activa(s)</span></div>${hours.map((hour) => {
     const slots = [0, 30].map((minute) => {
       const slotItems = rows.filter((item) => { const date = new Date(item.date); return date.getHours() === hour && date.getMinutes() >= minute && date.getMinutes() < minute + 30; });
       const stamp = `${dateValue}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-      return `<div class="calendar-slot" onclick="openAppointmentAt('${stamp}')">${slotItems.map((item) => appointmentCardContent(item, true)).join("")}</div>`;
+      return H`<div class="calendar-slot" onclick="openAppointmentAt('${stamp}')">${slotItems.map((item) => appointmentCardContent(item, true)).join("")}</div>`;
     }).join("");
-    return `<div class="calendar-hour"><time>${new Date(`${dateValue}T${String(hour).padStart(2, "0")}:00`).toLocaleTimeString("es-US", { hour: "numeric" })}</time><div>${slots}</div></div>`;
+    return H`<div class="calendar-hour"><time>${new Date(`${dateValue}T${String(hour).padStart(2, "0")}:00`).toLocaleTimeString(ClinicI18n.locale, { hour: "numeric" })}</time><div>${slots}</div></div>`;
   }).join("")}</div>`;
 }
 
 function renderWeekCalendar(rows, dateValue) {
   const monday = startOfAppointmentWeek(dateValue);
   const days = Array.from({ length: 7 }, (_, index) => addLocalDays(monday, index));
-  return `<div class="week-calendar">${days.map((date) => {
+  return H`<div class="week-calendar">${days.map((date) => {
     const key = localDateValue(date);
     const items = rows.filter((item) => String(item.date || "").slice(0, 10) === key).sort((a, b) => new Date(a.date) - new Date(b.date));
-    return `<section class="week-day ${key === localDateValue() ? "today" : ""}"><button type="button" class="week-day-head" onclick="showAppointmentDay('${key}')"><span>${date.toLocaleDateString("es-US", { weekday: "short" })}</span><strong>${date.getDate()}</strong></button><div class="week-day-body">${items.length ? items.map((item) => appointmentCardContent(item, true)).join("") : `<button type="button" class="week-empty" onclick="openAppointmentAt('${key}T09:00')">+ Agregar</button>`}</div></section>`;
+    return H`<section class="week-day ${key === localDateValue() ? "today" : ""}"><button type="button" class="week-day-head" onclick="showAppointmentDay('${key}')"><span>${date.toLocaleDateString(ClinicI18n.locale, { weekday: "short" })}</span><strong>${date.getDate()}</strong></button><div class="week-day-body">${items.length ? items.map((item) => appointmentCardContent(item, true)).join("") : H`<button type="button" class="week-empty" onclick="openAppointmentAt('${key}T09:00')">+ Agregar</button>`}</div></section>`;
   }).join("")}</div>`;
 }
 
@@ -1312,22 +1317,22 @@ function renderAppointments() {
   const dayRows = filteredRows.filter((item) => String(item.date || "").slice(0, 10) === dateValue).sort((a, b) => new Date(a.date) - new Date(b.date));
   const allDay = state.appointments.filter((item) => String(item.date || "").slice(0, 10) === dateValue);
   const countBy = (status) => allDay.filter((item) => item.status === status).length;
-  $("#appointmentSummary").innerHTML = `
+  $("#appointmentSummary").innerHTML = H`
     <div><strong>${allDay.length}</strong><span>Total</span></div><div><strong>${countBy("confirmed")}</strong><span>Confirmadas</span></div><div><strong>${countBy("arrived")}</strong><span>En espera</span></div><div><strong>${countBy("completed")}</strong><span>Atendidas</span></div><div><strong>${state.waitlist.filter((entry) => entry.status !== "scheduled").length}</strong><span>Lista de espera</span></div>`;
   if (appointmentView === "day") agenda.innerHTML = renderDayCalendar(dayRows, dateValue);
   else if (appointmentView === "week") agenda.innerHTML = renderWeekCalendar(filteredRows, dateValue);
-  else agenda.innerHTML = dayRows.length ? dayRows.map((item) => appointmentCardContent(item)).join("") : `<div class="empty agenda-empty"><strong>Agenda libre</strong><span>No hay citas para esta fecha y filtros.</span><button class="btn primary" onclick="openAppointmentDialog()">Crear una cita</button></div>`;
+  else agenda.innerHTML = dayRows.length ? dayRows.map((item) => appointmentCardContent(item)).join("") : H`<div class="empty agenda-empty"><strong>Agenda libre</strong><span>No hay citas para esta fecha y filtros.</span><button class="btn primary" onclick="openAppointmentDialog()">Crear una cita</button></div>`;
 }
 
 const roomStatuses = {
-  available: { label: "Disponible", color: "green" },
-  preparing: { label: "Preparándose", color: "blue" },
-  waiting: { label: "Paciente esperando", color: "orange" },
-  nursing: { label: "Enfermería atendiendo", color: "blue" },
-  ready: { label: "Listo para profesional", color: "green" },
-  in_visit: { label: "Consulta en curso", color: "purple" },
-  cleaning: { label: "Requiere limpieza", color: "red" },
-  out_of_service: { label: "Fuera de servicio", color: "gray" }
+  available: { get label() { return T("Disponible"); }, color: "green" },
+  preparing: { get label() { return T("Preparándose"); }, color: "blue" },
+  waiting: { get label() { return T("Paciente esperando"); }, color: "orange" },
+  nursing: { get label() { return T("Enfermería atendiendo"); }, color: "blue" },
+  ready: { get label() { return T("Listo para profesional"); }, color: "green" },
+  in_visit: { get label() { return T("Consulta en curso"); }, color: "purple" },
+  cleaning: { get label() { return T("Requiere limpieza"); }, color: "red" },
+  out_of_service: { get label() { return T("Fuera de servicio"); }, color: "gray" }
 };
 
 function roomStatus(value) { return roomStatuses[value] || roomStatuses.available; }
@@ -1339,62 +1344,62 @@ function roomElapsed(room) {
 }
 
 function renderRoomOptions() {
-  const options = `<option value="">Sin room asignado</option>${state.rooms.filter((room) => room.status !== "out_of_service").sort((a, b) => a.name.localeCompare(b.name)).map((room) => `<option value="${room.id}">${escapeHtml(room.name)} · ${roomStatus(room.status).label}</option>`).join("")}`;
+  const options = H`<option value="">Sin room asignado</option>${state.rooms.filter((room) => room.status !== "out_of_service").sort((a, b) => a.name.localeCompare(b.name)).map((room) => H`<option value="${room.id}">${escapeHtml(room.name)} · ${roomStatus(room.status).label}</option>`).join("")}`;
   ["appointmentRoom", "visitRoom"].forEach((id) => { const select = document.getElementById(id); if (!select) return; const selected = select.value; select.innerHTML = options; if ([...select.options].some((option) => option.value === selected)) select.value = selected; });
 }
 
 function renderRooms() {
   const board = $("#roomBoard"); if (!board) return;
   const occupied = state.rooms.filter((room) => room.patientId && !["available", "cleaning", "out_of_service"].includes(room.status)).length;
-  $("#roomSummary").innerHTML = `<div><strong>${state.rooms.length}</strong><span>Total rooms</span></div><div><strong>${state.rooms.filter((room) => room.status === "available").length}</strong><span>Disponibles</span></div><div><strong>${occupied}</strong><span>Con pacientes</span></div><div><strong>${state.rooms.filter((room) => room.status === "cleaning").length}</strong><span>Por limpiar</span></div>`;
+  $("#roomSummary").innerHTML = H`<div><strong>${state.rooms.length}</strong><span>Total rooms</span></div><div><strong>${state.rooms.filter((room) => room.status === "available").length}</strong><span>Disponibles</span></div><div><strong>${occupied}</strong><span>Con pacientes</span></div><div><strong>${state.rooms.filter((room) => room.status === "cleaning").length}</strong><span>Por limpiar</span></div>`;
   board.innerHTML = state.rooms.length ? [...state.rooms].sort((a, b) => a.name.localeCompare(b.name)).map((room) => {
     const status = roomStatus(room.status); const p = patient(room.patientId); const appointment = state.appointments.find((item) => item.id === room.appointmentId);
-    return `<article class="room-card room-${room.status || "available"}"><header><div><small>${escapeHtml(room.type === "lab" ? "Laboratorio" : room.type === "procedure" ? "Procedimiento" : "Consultorio")}</small><h3>${escapeHtml(room.name)}</h3></div><span class="badge ${status.color}">${status.label}</span></header><div class="room-patient">${p ? `<strong>${escapeHtml(p.name)}</strong><span>${escapeHtml(appointment?.reason || room.notes || "Paciente asignado")}</span><small>${escapeHtml(room.doctor || appointment?.doctor || "Sin profesional")} · ${roomElapsed(room)}</small>` : `<strong>Sin paciente</strong><span>${escapeHtml(room.location || "Listo para asignar")}</span>`}</div><div class="room-actions">${room.status === "available" ? `<button class="btn primary" onclick="openRoomAssignDialog('${room.id}')">Asignar paciente</button>` : ""}${p ? `<button class="btn light" onclick="advanceRoomStatus('${room.id}')">Siguiente estado</button><button class="btn light" onclick="openIpadLaunch('${room.id}')">Usar iPad</button>` : ""}${room.status === "cleaning" ? `<button class="btn primary" onclick="releaseRoom('${room.id}')">Marcar limpio</button>` : ""}<button class="icon-btn" onclick="openRoomDialog('${room.id}')" title="Editar room">✎</button></div></article>`;
-  }).join("") : `<div class="empty room-empty"><strong>Configura tus consultorios</strong><span>Crea Room 1, Room 2, laboratorio u otras áreas clínicas.</span><button class="btn primary" onclick="openRoomDialog()">Crear primer room</button></div>`;
+    return H`<article class="room-card room-${room.status || "available"}"><header><div><small>${escapeHtml(room.type === "lab" ? T("Laboratorio") : room.type === "procedure" ? T("Procedimiento") : T("Consultorio"))}</small><h3>${escapeHtml(room.name)}</h3></div><span class="badge ${status.color}">${status.label}</span></header><div class="room-patient">${p ? H`<strong>${escapeHtml(p.name)}</strong><span>${escapeHtml(appointment?.reason || room.notes || T("Paciente asignado"))}</span><small>${escapeHtml(room.doctor || appointment?.doctor || T("Sin profesional"))} · ${roomElapsed(room)}</small>` : H`<strong>Sin paciente</strong><span>${escapeHtml(room.location || T("Listo para asignar"))}</span>`}</div><div class="room-actions">${room.status === "available" ? H`<button class="btn primary" onclick="openRoomAssignDialog('${room.id}')">Asignar paciente</button>` : ""}${p ? H`<button class="btn light" onclick="advanceRoomStatus('${room.id}')">Siguiente estado</button><button class="btn light" onclick="openIpadLaunch('${room.id}')">Usar iPad</button>` : ""}${room.status === "cleaning" ? H`<button class="btn primary" onclick="releaseRoom('${room.id}')">Marcar limpio</button>` : ""}<button class="icon-btn" onclick="openRoomDialog('${room.id}')" title="Editar room">✎</button></div></article>`;
+  }).join("") : H`<div class="empty room-empty"><strong>Configura tus consultorios</strong><span>Crea Room 1, Room 2, laboratorio u otras áreas clínicas.</span><button class="btn primary" onclick="openRoomDialog()">Crear primer room</button></div>`;
 }
 
 function openRoomDialog(id = "") {
-  const room = roomById(id); $("#roomDialogTitle").textContent = room ? "Editar room" : "Nuevo room"; $("#roomId").value = room?.id || ""; $("#roomName").value = room?.name || ""; $("#roomType").value = room?.type || "exam"; $("#roomLocation").value = room?.location || ""; $("#roomDialog").showModal();
+  const room = roomById(id); $("#roomDialogTitle").textContent = room ? T("Editar room") : T("Nuevo room"); $("#roomId").value = room?.id || ""; $("#roomName").value = room?.name || ""; $("#roomType").value = room?.type || "exam"; $("#roomLocation").value = room?.location || ""; $("#roomDialog").showModal();
 }
 
 async function saveRoomFromDialog() {
-  const id = $("#roomId").value || uid(); const existing = roomById(id); const name = $("#roomName").value.trim(); if (!name) return toast("Escribe el nombre del room.");
+  const id = $("#roomId").value || uid(); const existing = roomById(id); const name = $("#roomName").value.trim(); if (!name) return toast(T("Escribe el nombre del room."));
   const data = { id, name, type: $("#roomType").value, location: $("#roomLocation").value.trim(), status: existing?.status || "available", patientId: existing?.patientId || "", appointmentId: existing?.appointmentId || "", doctor: existing?.doctor || "", statusChangedAt: existing?.statusChangedAt || new Date().toISOString(), createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
-  await getCollectionRef("rooms").doc(id).set(data, { merge: true }); recordActivity({ action: existing ? "updated" : "created", entityType: "room", entityId: id, title: existing ? "Room actualizado" : "Room creado", detail: name }).catch(console.error); $("#roomDialog").close(); toast("Room guardado.");
+  await getCollectionRef("rooms").doc(id).set(data, { merge: true }); recordActivity({ action: existing ? "updated" : "created", entityType: "room", entityId: id, title: existing ? "Room actualizado" : "Room creado", detail: name }).catch(console.error); $("#roomDialog").close(); toast(T("Room guardado."));
 }
 
 function openRoomAssignDialog(id) {
-  const room = roomById(id); if (!room) return; $("#roomAssignId").value = id; $("#roomAssignTitle").textContent = `Asignar ${room.name}`; $("#roomAssignPatient").innerHTML = state.patients.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(""); $("#roomAssignPatient").value = room.patientId || state.patients[0]?.id || ""; enablePatientSelectSearch($("#roomAssignPatient")); $("#roomAssignDoctor").value = room.doctor || ""; $("#roomAssignStatus").value = room.status && !["available", "cleaning"].includes(room.status) ? room.status : "waiting"; renderRoomAppointmentChoices(); $("#roomAssignDialog").showModal();
+  const room = roomById(id); if (!room) return; $("#roomAssignId").value = id; $("#roomAssignTitle").textContent = S`Asignar ${room.name}`; $("#roomAssignPatient").innerHTML = state.patients.map((p) => H`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(""); $("#roomAssignPatient").value = room.patientId || state.patients[0]?.id || ""; enablePatientSelectSearch($("#roomAssignPatient")); $("#roomAssignDoctor").value = room.doctor || ""; $("#roomAssignStatus").value = room.status && !["available", "cleaning"].includes(room.status) ? room.status : "waiting"; renderRoomAppointmentChoices(); $("#roomAssignDialog").showModal();
 }
 
 function renderRoomAppointmentChoices() {
-  const patientId = $("#roomAssignPatient").value; const rows = state.appointments.filter((item) => item.patientId === patientId && !["completed", "cancelled", "no_show"].includes(item.status)).sort((a, b) => new Date(a.date) - new Date(b.date)); $("#roomAssignAppointment").innerHTML = `<option value="">Sin cita vinculada</option>${rows.map((item) => `<option value="${item.id}">${fmtDate(item.date)} · ${escapeHtml(item.reason)}</option>`).join("")}`;
+  const patientId = $("#roomAssignPatient").value; const rows = state.appointments.filter((item) => item.patientId === patientId && !["completed", "cancelled", "no_show"].includes(item.status)).sort((a, b) => new Date(a.date) - new Date(b.date)); $("#roomAssignAppointment").innerHTML = H`<option value="">Sin cita vinculada</option>${rows.map((item) => H`<option value="${item.id}">${fmtDate(item.date)} · ${escapeHtml(item.reason)}</option>`).join("")}`;
 }
 
 async function assignRoomFromDialog() {
   const room = roomById($("#roomAssignId").value); if (!room) return; const patientId = $("#roomAssignPatient").value; const appointmentId = $("#roomAssignAppointment").value; const status = $("#roomAssignStatus").value; const doctor = $("#roomAssignDoctor").value.trim();
   const data = { ...room, patientId, appointmentId, doctor, status, portalActive: false, portalSessionKey: null, portalExpiresAt: null, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; await getCollectionRef("rooms").doc(room.id).set(data, { merge: true });
   if (appointmentId) await getCollectionRef("appointments").doc(appointmentId).set({ roomId: room.id, roomName: room.name, status: status === "waiting" ? "arrived" : "confirmed", updatedAt: new Date().toISOString() }, { merge: true });
-  recordActivity({ action: "assigned", entityType: "room", entityId: room.id, patientId, title: "Paciente asignado a room", detail: `${room.name} · ${roomStatus(status).label}` }).catch(console.error); $("#roomAssignDialog").close(); toast(`Paciente asignado a ${room.name}.`);
+  recordActivity({ action: "assigned", entityType: "room", entityId: room.id, patientId, title: "Paciente asignado a room", detail: `${room.name} · ${roomStatus(status).label}` }).catch(console.error); $("#roomAssignDialog").close(); toast(S`Paciente asignado a ${room.name}.`);
 }
 
 async function updateRoomStatus(id, status) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "status", entityType: "room", entityId: id, patientId: room.patientId || "", title: `Room: ${roomStatus(status).label}`, detail: room.name }).catch(console.error); }
-function advanceRoomStatus(id) { const room = roomById(id); if (!room) return; const next = { waiting: "nursing", nursing: "ready", ready: "in_visit", in_visit: "cleaning", preparing: "available" }[room.status] || "cleaning"; updateRoomStatus(id, next).catch((error) => { console.error(error); toast("No se pudo cambiar el estado."); }); }
-async function releaseRoom(id) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status: "available", patientId: "", appointmentId: "", doctor: "", portalActive: false, portalSessionKey: null, portalExpiresAt: null, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); toast(`${room.name} está disponible.`); }
+function advanceRoomStatus(id) { const room = roomById(id); if (!room) return; const next = { waiting: "nursing", nursing: "ready", ready: "in_visit", in_visit: "cleaning", preparing: "available" }[room.status] || "cleaning"; updateRoomStatus(id, next).catch((error) => { console.error(error); toast(T("No se pudo cambiar el estado.")); }); }
+async function releaseRoom(id) { const room = roomById(id); if (!room) return; await getCollectionRef("rooms").doc(id).set({ status: "available", patientId: "", appointmentId: "", doctor: "", portalActive: false, portalSessionKey: null, portalExpiresAt: null, statusChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); toast(S`${room.name} está disponible.`); }
 
 function openIpadLaunch(id) {
-  const room = roomById(id); const p = patient(room?.patientId); if (!room || !p) return toast("Asigna primero un paciente al room.");
+  const room = roomById(id); const p = patient(room?.patientId); if (!room || !p) return toast(T("Asigna primero un paciente al room."));
   const pending = state.formResponses.filter((item) => item.patientId === p.id && item.status !== "completed");
   const documents = state.visits.filter((visit) => visit.patientId === p.id).flatMap((visit) => (visit.documents || []).filter((doc) => doc.status !== "signed").map((doc) => ({ ...doc, visitId: visit.id })));
   const assignedDocumentIds = new Set(documents.map((doc) => doc.documentId));
   const roomDocuments = state.documents.filter((doc) => doc.type === "application/pdf" && doc.roomReady && !assignedDocumentIds.has(doc.id));
-  $("#ipadRoomId").value = id; $("#ipadLaunchContext").innerHTML = `<div><small>Room</small><strong>${escapeHtml(room.name)}</strong></div><div><small>Paciente</small><strong>${escapeHtml(p.name)}</strong></div>`;
-  $("#ipadActivityList").innerHTML = `${pending.length ? `<div class="ipad-activity-group"><strong>Pendientes del paciente</strong>${pending.map((form) => ipadActivityChoice("response", form.id, "☷", form.templateName, "Continuar formulario pendiente", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>Biblioteca de formularios</strong>${state.formTemplates.length ? state.formTemplates.map((template) => ipadActivityChoice("template", template.id, "＋", template.name, `${(template.questions || []).length} pregunta(s)`, false)).join("") : `<small>No hay plantillas digitales.</small>`}</div>${documents.length ? `<div class="ipad-activity-group"><strong>Documentos pendientes</strong>${documents.map((doc) => ipadActivityChoice("document", `${doc.visitId}|${doc.documentId}`, "✍", doc.name, "Asignado y pendiente de firma", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>PDF convertidos para Room</strong>${roomDocuments.length ? roomDocuments.map((doc) => ipadActivityChoice("library-document", doc.id, "PDF", doc.name, `${(doc.fields || []).length ? `${doc.fields.length} campo(s) digitales` : "Revisión y firma"}`, false)).join("") : `<small>No hay otros PDF convertidos disponibles.</small>`}</div>`;
+  $("#ipadRoomId").value = id; $("#ipadLaunchContext").innerHTML = H`<div><small>Room</small><strong>${escapeHtml(room.name)}</strong></div><div><small>Paciente</small><strong>${escapeHtml(p.name)}</strong></div>`;
+  $("#ipadActivityList").innerHTML = H`${pending.length ? H`<div class="ipad-activity-group"><strong>Pendientes del paciente</strong>${pending.map((form) => ipadActivityChoice("response", form.id, "☷", form.templateName, "Continuar formulario pendiente", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>Biblioteca de formularios</strong>${state.formTemplates.length ? state.formTemplates.map((template) => ipadActivityChoice("template", template.id, "＋", template.name, S`${(template.questions || []).length} pregunta(s)`, false)).join("") : H`<small>No hay plantillas digitales.</small>`}</div>${documents.length ? H`<div class="ipad-activity-group"><strong>Documentos pendientes</strong>${documents.map((doc) => ipadActivityChoice("document", `${doc.visitId}|${doc.documentId}`, "✍", doc.name, "Asignado y pendiente de firma", true)).join("")}</div>` : ""}<div class="ipad-activity-group"><strong>PDF convertidos para Room</strong>${roomDocuments.length ? roomDocuments.map((doc) => ipadActivityChoice("library-document", doc.id, "PDF", doc.name, `${(doc.fields || []).length ? S`${doc.fields.length} campo(s) digitales` : T("Revisión y firma")}`, false)).join("") : H`<small>No hay otros PDF convertidos disponibles.</small>`}</div>`;
   $("#ipadCreateTemplateBtn").classList.toggle("hidden", currentAccess.role !== "admin");
   $("#ipadLanguage").value = ["English", "Inglés", "en"].includes(p.language) ? "en" : "es"; $("#ipadCompletionAction").value = "ready"; $("#ipadQuickQuestion").value = ""; $("#ipadLaunchDialog").showModal();
 }
 
-function ipadActivityChoice(kind, id, icon, title, detail, checked) { return `<label class="ipad-activity-choice"><input type="checkbox" data-ipad-kind="${kind}" data-ipad-id="${escapeHtml(id)}" ${checked ? "checked" : ""}/><span>${icon}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div></label>`; }
+function ipadActivityChoice(kind, id, icon, title, detail, checked) { return H`<label class="ipad-activity-choice"><input type="checkbox" data-ipad-kind="${kind}" data-ipad-id="${escapeHtml(id)}" ${checked ? "checked" : ""}/><span>${icon}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div></label>`; }
 
 async function createKioskResponse(template, patientId, roomId, quickQuestion = "") {
   const id = uid(); const questions = quickQuestion ? [{ id: uid(), label: quickQuestion, type: "textarea", required: true }] : (template.questions || []); const name = quickQuestion ? "Pregunta del profesional" : template.name;
@@ -1422,7 +1427,7 @@ async function assignRoomLibraryDocument(documentId, room, patientItem) {
 }
 
 async function startPatientKiosk() {
-  const room = roomById($("#ipadRoomId").value); const p = patient(room?.patientId); if (!room || !p) return toast("Asigna primero un paciente al room.");
+  const room = roomById($("#ipadRoomId").value); const p = patient(room?.patientId); if (!room || !p) return toast(T("Asigna primero un paciente al room."));
   const selected = Array.from($$("#ipadActivityList [data-ipad-kind]:checked")); const activities = [];
   for (const input of selected) {
     if (input.dataset.ipadKind === "response") activities.push({ type: "form", responseId: input.dataset.ipadId });
@@ -1431,9 +1436,9 @@ async function startPatientKiosk() {
     if (input.dataset.ipadKind === "library-document") { const activity = await assignRoomLibraryDocument(input.dataset.ipadId, room, p); if (activity) activities.push(activity); }
   }
   const quickQuestion = $("#ipadQuickQuestion").value.trim(); if (quickQuestion) activities.push({ type: "form", responseId: (await createKioskResponse({}, p.id, room.id, quickQuestion)).id });
-  if (!activities.length) return toast("Selecciona al menos un formulario o PDF para el iPad.");
+  if (!activities.length) return toast(T("Selecciona al menos un formulario o PDF para el iPad."));
   const endpoint = `https://us-central1-${window.firebaseConfig.projectId}.cloudfunctions.net/patientPortal`; const idToken = await auth.currentUser.getIdToken(); const response = await fetch(endpoint, { method: "POST", headers: { "Authorization": `Bearer ${idToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", clinicId: activeClinicId, roomId: room.id, patientId: p.id, activities, language: $("#ipadLanguage").value, completionAction: $("#ipadCompletionAction").value }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "portal-session-failed");
-  $("#ipadLaunchDialog").close(); $("#patientPortalCode").textContent = data.code; $("#patientPortalUrl").value = data.portalUrl; $("#patientPortalDialog").showModal(); toast("Acceso temporal del iPad creado.");
+  $("#ipadLaunchDialog").close(); $("#patientPortalCode").textContent = data.code; $("#patientPortalUrl").value = data.portalUrl; $("#patientPortalDialog").showModal(); toast(T("Acceso temporal del iPad creado."));
 }
 
 function restorePatientKiosk() {
@@ -1443,33 +1448,33 @@ function restorePatientKiosk() {
 
 function kioskText(es, en) { return activeKioskSession?.language === "en" ? en : es; }
 function currentKioskActivity() { return activeKioskSession?.activities?.[activeKioskSession.currentIndex]; }
-function updateKioskProgress() { const total = activeKioskSession?.activities?.length || 0; const current = Math.min((activeKioskSession?.currentIndex || 0) + 1, total); $("#kioskProgress").classList.toggle("hidden", !total); $("#kioskProgressText").textContent = total ? `${kioskText("Actividad", "Activity")} ${current} ${kioskText("de", "of")} ${total}` : ""; $("#kioskProgressBar").style.width = total ? `${current / total * 100}%` : "0"; }
+function updateKioskProgress() { const total = activeKioskSession?.activities?.length || 0; const current = Math.min((activeKioskSession?.currentIndex || 0) + 1, total); $("#kioskProgress").classList.toggle("hidden", !total); $("#kioskProgressText").textContent = total ? S`${kioskText("Actividad", "Activity")} ${current} ${kioskText("de", "of")} ${total}` : ""; $("#kioskProgressBar").style.width = total ? `${current / total * 100}%` : "0"; }
 
 function renderCurrentKioskActivity() {
   const p = patient(activeKioskSession?.patientId); const activity = currentKioskActivity(); updateKioskProgress();
   if (!p) return;
   if (!activity) return finishKioskActivities(p);
-  if (activity.type === "form") { const response = state.formResponses.find((item) => item.id === activity.responseId); if (!response) return advanceKioskActivity(); $("#kioskContent").innerHTML = `<form id="kioskForm" class="kiosk-form"><div class="kiosk-welcome"><small>${kioskText("Hola", "Hello")}</small><h1>${escapeHtml(p.name.split(" ")[0])}</h1><h2>${escapeHtml(response.templateName || "Formulario")}</h2><p>${escapeHtml(response.description || kioskText("Contesta las siguientes preguntas.", "Please answer the following questions."))}</p></div><div class="kiosk-questions">${(response.questions || []).map((q, i) => digitalQuestionHtml(q, response.answers?.[q.id] || "", i)).join("")}</div><button class="kiosk-submit" type="submit">${kioskText("Guardar y continuar", "Save and continue")}</button></form>`; document.getElementById("kioskForm")?.addEventListener("submit", saveKioskForm); return; }
+  if (activity.type === "form") { const response = state.formResponses.find((item) => item.id === activity.responseId); if (!response) return advanceKioskActivity(); $("#kioskContent").innerHTML = H`<form id="kioskForm" class="kiosk-form"><div class="kiosk-welcome"><small>${kioskText("Hola", "Hello")}</small><h1>${escapeHtml(p.name.split(" ")[0])}</h1><h2>${escapeHtml(response.templateName || T("Formulario"))}</h2><p>${escapeHtml(response.description || kioskText("Contesta las siguientes preguntas.", "Please answer the following questions."))}</p></div><div class="kiosk-questions">${(response.questions || []).map((q, i) => digitalQuestionHtml(q, response.answers?.[q.id] || "", i)).join("")}</div><button class="kiosk-submit" type="submit">${kioskText("Guardar y continuar", "Save and continue")}</button></form>`; document.getElementById("kioskForm")?.addEventListener("submit", saveKioskForm); return; }
   renderKioskDocument(activity, p);
 }
 
 function renderKioskDocument(activity, p) {
   const visit = state.visits.find((item) => item.id === activity.visitId); const doc = visit?.documents?.find((item) => item.documentId === activity.documentId); if (!visit || !doc) return advanceKioskActivity();
   const visibleFields = (doc.fields || []).filter((field) => !field.hidden && field.type !== "signature");
-  $("#kioskContent").innerHTML = `<form id="kioskSignatureForm" class="kiosk-form"><div class="kiosk-welcome"><small>${kioskText("Documento digital", "Digital document")}</small><h1>${escapeHtml(doc.name)}</h1><p>${kioskText("Revisa el PDF, completa los campos y firma.", "Review the PDF, complete the fields, and sign.")}</p>${doc.url ? `<a class="btn primary" href="${escapeHtml(doc.url)}" target="_blank" rel="noopener">${kioskText("Abrir PDF", "Open PDF")}</a>` : ""}</div>${doc.url ? `<iframe class="kiosk-document-preview" src="${escapeHtml(doc.url)}" title="${escapeHtml(doc.name)}"></iframe>` : ""}${visibleFields.length ? `<div class="kiosk-questions">${visibleFields.map((field, index) => digitalQuestionHtml(field, doc.answers?.[field.id] || "", index)).join("")}</div>` : ""}<label class="digital-question"><span>${kioskText("Nombre de quien firma", "Signer name")} *</span><input id="kioskSignerName" value="${escapeHtml(p.name)}" required /></label><div class="kiosk-signature"><div><strong>${kioskText("Firma con el dedo o Apple Pencil", "Sign with your finger or Apple Pencil")}</strong><button id="kioskClearSignature" type="button">${kioskText("Limpiar", "Clear")}</button></div><canvas id="kioskSignatureCanvas"></canvas></div><label class="consent-field"><input id="kioskSignatureConsent" type="checkbox" required/><span><strong>${kioskText("Acepto usar esta firma electrónica", "I agree to use this electronic signature")}</strong></span></label><button class="kiosk-submit" type="submit">${kioskText("Guardar y firmar", "Save and sign")}</button></form>`;
+  $("#kioskContent").innerHTML = H`<form id="kioskSignatureForm" class="kiosk-form"><div class="kiosk-welcome"><small>${kioskText("Documento digital", "Digital document")}</small><h1>${escapeHtml(doc.name)}</h1><p>${kioskText("Revisa el PDF, completa los campos y firma.", "Review the PDF, complete the fields, and sign.")}</p>${doc.url ? H`<a class="btn primary" href="${escapeHtml(doc.url)}" target="_blank" rel="noopener">${kioskText("Abrir PDF", "Open PDF")}</a>` : ""}</div>${doc.url ? H`<iframe class="kiosk-document-preview" src="${escapeHtml(doc.url)}" title="${escapeHtml(doc.name)}"></iframe>` : ""}${visibleFields.length ? H`<div class="kiosk-questions">${visibleFields.map((field, index) => digitalQuestionHtml(field, doc.answers?.[field.id] || "", index)).join("")}</div>` : ""}<label class="digital-question"><span>${kioskText("Nombre de quien firma", "Signer name")} *</span><input id="kioskSignerName" value="${escapeHtml(p.name)}" required /></label><div class="kiosk-signature"><div><strong>${kioskText("Firma con el dedo o Apple Pencil", "Sign with your finger or Apple Pencil")}</strong><button id="kioskClearSignature" type="button">${kioskText("Limpiar", "Clear")}</button></div><canvas id="kioskSignatureCanvas"></canvas></div><label class="consent-field"><input id="kioskSignatureConsent" type="checkbox" required/><span><strong>${kioskText("Acepto usar esta firma electrónica", "I agree to use this electronic signature")}</strong></span></label><button class="kiosk-submit" type="submit">${kioskText("Guardar y firmar", "Save and sign")}</button></form>`;
   initKioskSignatureCanvas(); document.getElementById("kioskSignatureForm")?.addEventListener("submit", saveKioskSignature);
 }
 
 function initKioskSignatureCanvas() { const canvas = document.getElementById("kioskSignatureCanvas"); canvas.width = Math.max(600, Math.floor(canvas.getBoundingClientRect().width * 2)); canvas.height = 280; const ctx = canvas.getContext("2d"); ctx.scale(2, 2); ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.strokeStyle = "#0f172a"; let drawing = false; canvas.dataset.hasInk = "false"; const point = (event) => { const rect = canvas.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; }; canvas.onpointerdown = (event) => { drawing = true; const p = point(event); ctx.beginPath(); ctx.moveTo(p.x, p.y); canvas.setPointerCapture(event.pointerId); }; canvas.onpointermove = (event) => { if (!drawing) return; const p = point(event); ctx.lineTo(p.x, p.y); ctx.stroke(); canvas.dataset.hasInk = "true"; }; canvas.onpointerup = canvas.onpointercancel = () => { drawing = false; }; document.getElementById("kioskClearSignature").onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas.dataset.hasInk = "false"; }; }
 
-async function saveKioskForm(event) { event.preventDefault(); const activity = currentKioskActivity(); const response = state.formResponses.find((item) => item.id === activity?.responseId); if (!response) return advanceKioskActivity(); const answers = Object.fromEntries(Array.from($$("#kioskContent [data-answer-id]")).map((input) => [input.dataset.answerId, input.value.trim()])); const missing = (response.questions || []).find((q) => q.required && !answers[q.id]); if (missing) return toast(`${kioskText("Completa", "Complete")}: ${missing.label}`); await getCollectionRef("formResponses").doc(response.id).set({ answers, status: "completed", updatedAt: new Date().toISOString(), completedAt: new Date().toISOString(), completedBy: "patient-kiosk", roomId: activeKioskSession.roomId }, { merge: true }); recordActivity({ action: "completed", entityType: "form", entityId: response.id, patientId: response.patientId, title: "Formulario completado en iPad", detail: `${response.templateName} · ${roomById(activeKioskSession.roomId)?.name || "Room"}` }).catch(console.error); advanceKioskActivity(); }
+async function saveKioskForm(event) { event.preventDefault(); const activity = currentKioskActivity(); const response = state.formResponses.find((item) => item.id === activity?.responseId); if (!response) return advanceKioskActivity(); const answers = Object.fromEntries(Array.from($$("#kioskContent [data-answer-id]")).map((input) => [input.dataset.answerId, input.value.trim()])); const missing = (response.questions || []).find((q) => q.required && !answers[q.id]); if (missing) return toast(S`${kioskText("Completa", "Complete")}: ${missing.label}`); await getCollectionRef("formResponses").doc(response.id).set({ answers, status: "completed", updatedAt: new Date().toISOString(), completedAt: new Date().toISOString(), completedBy: "patient-kiosk", roomId: activeKioskSession.roomId }, { merge: true }); recordActivity({ action: "completed", entityType: "form", entityId: response.id, patientId: response.patientId, title: "Formulario completado en iPad", detail: `${response.templateName} · ${roomById(activeKioskSession.roomId)?.name || "Room"}` }).catch(console.error); advanceKioskActivity(); }
 
-async function saveKioskSignature(event) { event.preventDefault(); const activity = currentKioskActivity(); const visit = state.visits.find((item) => item.id === activity?.visitId); const doc = visit?.documents?.find((item) => item.documentId === activity?.documentId); const canvas = document.getElementById("kioskSignatureCanvas"); const signedBy = document.getElementById("kioskSignerName").value.trim(); if (!visit || !doc) return advanceKioskActivity(); const answers = Object.fromEntries(Array.from($$("#kioskContent [data-answer-id]")).map((input) => [input.dataset.answerId, input.value.trim()])); const missing = (doc.fields || []).find((field) => field.required && !answers[field.id]); if (missing) return toast(`${kioskText("Completa", "Complete")}: ${missing.label}`); if (!signedBy || canvas.dataset.hasInk !== "true") return toast(kioskText("Escribe el nombre y dibuja la firma.", "Enter the name and draw the signature.")); if (!document.getElementById("kioskSignatureConsent").checked) return toast(kioskText("Confirma la aceptación de la firma.", "Confirm signature acceptance.")); const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png")); const path = `clinics/${activeClinicId}/signatures/${visit.id}/${doc.documentId}/${uid()}.png`; const ref = storage.ref(path); await ref.put(blob, { contentType: "image/png" }); const signatureUrl = await ref.getDownloadURL(); const signedAt = new Date().toISOString(); const documents = visit.documents.map((item) => item.documentId === doc.documentId ? { ...item, answers, status: "signed", signedBy, signedAt, signatureUrl, signaturePath: path, consentAccepted: true, signedByUserId: auth.currentUser.uid, signedInRoomId: activeKioskSession.roomId } : item); await saveVisit({ id: visit.id, documents }); visit.documents = documents; recordActivity({ action: "signed", entityType: "signature", entityId: doc.documentId, patientId: visit.patientId, visitId: visit.id, title: "Documento digital completado y firmado en iPad", detail: `${doc.name} · ${roomById(activeKioskSession.roomId)?.name || "Room"}` }).catch(console.error); advanceKioskActivity(); }
+async function saveKioskSignature(event) { event.preventDefault(); const activity = currentKioskActivity(); const visit = state.visits.find((item) => item.id === activity?.visitId); const doc = visit?.documents?.find((item) => item.documentId === activity?.documentId); const canvas = document.getElementById("kioskSignatureCanvas"); const signedBy = document.getElementById("kioskSignerName").value.trim(); if (!visit || !doc) return advanceKioskActivity(); const answers = Object.fromEntries(Array.from($$("#kioskContent [data-answer-id]")).map((input) => [input.dataset.answerId, input.value.trim()])); const missing = (doc.fields || []).find((field) => field.required && !answers[field.id]); if (missing) return toast(S`${kioskText("Completa", "Complete")}: ${missing.label}`); if (!signedBy || canvas.dataset.hasInk !== "true") return toast(kioskText("Escribe el nombre y dibuja la firma.", "Enter the name and draw the signature.")); if (!document.getElementById("kioskSignatureConsent").checked) return toast(kioskText("Confirma la aceptación de la firma.", "Confirm signature acceptance.")); const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png")); const path = `clinics/${activeClinicId}/signatures/${visit.id}/${doc.documentId}/${uid()}.png`; const ref = storage.ref(path); await ref.put(blob, { contentType: "image/png" }); const signatureUrl = await ref.getDownloadURL(); const signedAt = new Date().toISOString(); const documents = visit.documents.map((item) => item.documentId === doc.documentId ? { ...item, answers, status: "signed", signedBy, signedAt, signatureUrl, signaturePath: path, consentAccepted: true, signedByUserId: auth.currentUser.uid, signedInRoomId: activeKioskSession.roomId } : item); await saveVisit({ id: visit.id, documents }); visit.documents = documents; recordActivity({ action: "signed", entityType: "signature", entityId: doc.documentId, patientId: visit.patientId, visitId: visit.id, title: "Documento digital completado y firmado en iPad", detail: `${doc.name} · ${roomById(activeKioskSession.roomId)?.name || "Room"}` }).catch(console.error); advanceKioskActivity(); }
 
 function advanceKioskActivity() { activeKioskSession.currentIndex += 1; sessionStorage.setItem("clinicKioskSession", JSON.stringify(activeKioskSession)); renderCurrentKioskActivity(); }
-function finishKioskActivities(p) { $("#kioskProgress").classList.add("hidden"); $("#kioskContent").innerHTML = `<div class="kiosk-done"><span>✓</span><h1>${kioskText("¡Gracias!", "Thank you!")}</h1><p>${kioskText("Todo quedó guardado. Avise al personal o entregue el iPad.", "Everything has been saved. Please notify staff or return the iPad.")}</p></div>`; if (!activeKioskSession.finishedAt) { activeKioskSession.finishedAt = Date.now(); sessionStorage.setItem("clinicKioskSession", JSON.stringify(activeKioskSession)); updateRoomStatus(activeKioskSession.roomId, activeKioskSession.completionAction || "ready").catch(console.error); recordActivity({ action: "completed", entityType: "room", entityId: activeKioskSession.roomId, patientId: p.id, title: "Paciente terminó actividades en iPad", detail: roomById(activeKioskSession.roomId)?.name || "Room" }).catch(console.error); } }
+function finishKioskActivities(p) { $("#kioskProgress").classList.add("hidden"); $("#kioskContent").innerHTML = H`<div class="kiosk-done"><span>✓</span><h1>${kioskText("¡Gracias!", "Thank you!")}</h1><p>${kioskText("Todo quedó guardado. Avise al personal o entregue el iPad.", "Everything has been saved. Please notify staff or return the iPad.")}</p></div>`; if (!activeKioskSession.finishedAt) { activeKioskSession.finishedAt = Date.now(); sessionStorage.setItem("clinicKioskSession", JSON.stringify(activeKioskSession)); updateRoomStatus(activeKioskSession.roomId, activeKioskSession.completionAction || "ready").catch(console.error); recordActivity({ action: "completed", entityType: "room", entityId: activeKioskSession.roomId, patientId: p.id, title: "Paciente terminó actividades en iPad", detail: roomById(activeKioskSession.roomId)?.name || "Room" }).catch(console.error); } }
 
-function exitPatientKiosk() { if (!activeKioskSession) return; const value = prompt("PIN del personal para salir del modo paciente:"); if (value !== activeKioskSession.pin) return toast("PIN incorrecto."); activeKioskSession = null; sessionStorage.removeItem("clinicKioskSession"); document.body.classList.remove("kiosk-active"); $("#patientKiosk").classList.add("hidden"); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); showPage("rooms"); }
+function exitPatientKiosk() { if (!activeKioskSession) return; const value = prompt(T("PIN del personal para salir del modo paciente:")); if (value !== activeKioskSession.pin) return toast(T("PIN incorrecto.")); activeKioskSession = null; sessionStorage.removeItem("clinicKioskSession"); document.body.classList.remove("kiosk-active"); $("#patientKiosk").classList.add("hidden"); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); showPage("rooms"); }
 
 function renderVisits() {
   const query = ($("#visitSearch")?.value || "").toLowerCase().trim();
@@ -1486,25 +1491,25 @@ function renderVisits() {
     const due = balance(visit);
     const visitDocuments = visit.documents || [];
     const pendingDocuments = visitDocuments.filter((item) => item.status !== "signed").length;
-    return `
+    return H`
       <tr>
         <td>${fmtDate(visit.date)}</td>
-        <td><strong>${p?.name || "Paciente eliminado"}</strong><br><small>${visit.doctor || "Sin doctor asignado"} · ${visit.roomName || roomById(visit.roomId)?.name || "Room sin asignar"}</small></td>
-        <td><span class="badge ${visit.type === "Teleconsulta" ? "blue" : "green"}">${visit.type}</span><br><small>${visit.status || "Completada"}</small></td>
-        <td>${visit.reason}</td>
+        <td><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong><br><small>${escapeHtml(visit.doctor || T("Sin doctor asignado"))} · ${escapeHtml(visit.roomName || roomById(visit.roomId)?.name || T("Room sin asignar"))}</small></td>
+        <td><span class="badge ${visit.type === "Teleconsulta" ? "blue" : "green"}">${escapeHtml(T(visit.type))}</span><br><small>${escapeHtml(T(visit.status || "Completada"))}</small></td>
+        <td>${escapeHtml(visit.reason)}</td>
         <td>${money(visit.total)}</td>
         <td>${money(totalPaid(visit))}</td>
         <td><span class="badge ${due > 0 ? "red" : "green"}">${money(due)}</span></td>
         <td>
           <div class="row-actions">
-            ${visitDocuments.length && ["admin", "clinical"].includes(currentAccess.role) ? `<button class="icon-btn signature-action ${pendingDocuments ? "has-pending" : "all-signed"}" onclick="openSignatureDialog('${visit.id}')" title="${pendingDocuments ? `${pendingDocuments} documento(s) pendiente(s) de firma` : "Documentos firmados"}">✍</button>` : ""}
-            ${["admin", "clinical"].includes(currentAccess.role) ? `<button class="icon-btn" onclick="editVisit('${visit.id}')" title="Editar">✎</button>` : ""}
-            ${currentAccess.role === "admin" ? `<button class="icon-btn" onclick="deleteVisit('${visit.id}')" title="Eliminar">⌫</button>` : ""}
+            ${visitDocuments.length && ["admin", "clinical"].includes(currentAccess.role) ? H`<button class="icon-btn signature-action ${pendingDocuments ? "has-pending" : "all-signed"}" onclick="openSignatureDialog('${visit.id}')" title="${pendingDocuments ? S`${pendingDocuments} documento(s) pendiente(s) de firma` : T("Documentos firmados")}">✍</button>` : ""}
+            ${["admin", "clinical"].includes(currentAccess.role) ? H`<button class="icon-btn" onclick="editVisit('${visit.id}')" title="Editar">✎</button>` : ""}
+            ${currentAccess.role === "admin" ? H`<button class="icon-btn" onclick="deleteVisit('${visit.id}')" title="Eliminar">⌫</button>` : ""}
           </div>
         </td>
       </tr>
     `;
-  }).join("") : `<tr><td class="empty" colspan="8">No hay consultas registradas.</td></tr>`;
+  }).join("") : H`<tr><td class="empty" colspan="8">No hay consultas registradas.</td></tr>`;
 }
 
 function billingVisitAmounts(visit) {
@@ -1524,7 +1529,7 @@ function billingVisitAmounts(visit) {
 }
 
 function billingSummaryCard(label, amount, hint, tone = "") {
-  return `<article class="kpi-card billing-kpi ${tone}"><span class="kpi-label">${label}</span><strong>${money(amount)}</strong><small>${hint}</small></article>`;
+  return H`<article class="kpi-card billing-kpi ${tone}"><span class="kpi-label">${T(label)}</span><strong>${money(amount)}</strong><small>${T(hint)}</small></article>`;
 }
 
 function billingTotals(visits) {
@@ -1564,7 +1569,7 @@ function renderBillingSummary(visits) {
       + billingSummaryCard("Cash cobrado", totals.patientPaid, "Incluye copagos", "tone-paid")
       + billingSummaryCard("Facturado a seguros", totals.insuranceBilled, "Consultas aseguradas", "tone-insurance")
       + billingSummaryCard("Seguros cobrados", totals.insurancePaid, "Pagos recibidos", "tone-paid")
-      + billingSummaryCard("Balance total", pending, `Pacientes ${money(totals.patientPending)} · Seguros ${money(totals.insurancePending)}`, "tone-pending");
+      + billingSummaryCard("Balance total", pending, S`Pacientes ${money(totals.patientPending)} · Seguros ${money(totals.insurancePending)}`, "tone-pending");
   }
   $("#billingSummary").className = `kpi-grid billing-summary summary-${activeBillingTab}`;
   $("#billingSummary").innerHTML = cards;
@@ -1574,7 +1579,7 @@ function renderBilling() {
   const insuranceSelect = $("#billingInsuranceFilter");
   const selectedInsurance = insuranceSelect.value;
   const insuranceCompanies = [...new Set(state.patients.map((p) => p.insuranceCompany).filter(Boolean))].sort();
-  insuranceSelect.innerHTML = `<option value="">Todos los seguros</option>${insuranceCompanies.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
+  insuranceSelect.innerHTML = H`<option value="">Todos los seguros</option>${insuranceCompanies.map((name) => H`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
   if (insuranceCompanies.includes(selectedInsurance)) insuranceSelect.value = selectedInsurance;
   const query = ($("#billingSearch")?.value || "").toLowerCase().trim();
   const statusFilter = $("#billingStatusFilter")?.value || "";
@@ -1607,21 +1612,21 @@ function renderBilling() {
     const type = paymentType(visit);
     const status = financialStatus(visit);
     const value = billingVisitAmounts(visit); const adjustmentTotal = adjustmentAmount(visit.id, ["discount", "writeoff", "refund"]);
-    return `<tr><td data-label="Fecha / Factura">${fmtDate(visit.date)}<br><small>${escapeHtml(invoiceNumber(visit))}</small></td><td data-label="Paciente"><strong>${escapeHtml(p?.name || "Paciente eliminado")}</strong><br><small>${escapeHtml(type === "insurance" ? (p?.insuranceCompany || "Seguro no indicado") : "Pago propio")}</small></td><td data-label="Servicios">${visitItems(visit).length} servicio(s)<br><small>${escapeHtml(visitItems(visit).map((item) => item.description).join(", "))}${adjustmentTotal ? ` · Ajustes ${money(adjustmentTotal)}` : ""}</small></td><td data-label="Tipo"><span class="badge ${type === "insurance" ? "blue" : "green"}">${type === "insurance" ? "Seguro" : "Cash"}</span></td><td data-label="Facturado">${money(value.total)}</td><td data-label="Paciente">${money(value.patientPaid)}</td><td data-label="Seguro">${money(value.insurancePaid)}</td><td data-label="Balance"><strong>${money(balance(visit))}</strong></td><td data-label="Estado"><span class="badge ${status.color}">${status.label}</span></td><td><div class="row-actions"><button class="btn light invoice-view" onclick="openPaymentDialog('${visit.id}')">Pago</button><button class="btn light" onclick="openAdjustmentDialog('${visit.id}')">Ajuste</button></div></td></tr>`;
-  }).join("") : `<tr><td class="empty" colspan="10">No hay pagos que coincidan con los filtros.</td></tr>`;
+    return H`<tr><td data-label="Fecha / Factura">${fmtDate(visit.date)}<br><small>${escapeHtml(invoiceNumber(visit))}</small></td><td data-label="Paciente"><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong><br><small>${escapeHtml(type === "insurance" ? (p?.insuranceCompany || T("Seguro no indicado")) : T("Pago propio"))}</small></td><td data-label="Servicios">${visitItems(visit).length} servicio(s)<br><small>${escapeHtml(visitItems(visit).map((item) => item.description).join(", "))}${adjustmentTotal ? S` · Ajustes ${money(adjustmentTotal)}` : ""}</small></td><td data-label="Tipo"><span class="badge ${type === "insurance" ? "blue" : "green"}">${type === "insurance" ? T("Seguro") : T("Cash")}</span></td><td data-label="Facturado">${money(value.total)}</td><td data-label="Paciente">${money(value.patientPaid)}</td><td data-label="Seguro">${money(value.insurancePaid)}</td><td data-label="Balance"><strong>${money(balance(visit))}</strong></td><td data-label="Estado"><span class="badge ${status.color}">${status.label}</span></td><td><div class="row-actions"><button class="btn light invoice-view" onclick="openPaymentDialog('${visit.id}')">Pago</button><button class="btn light" onclick="openAdjustmentDialog('${visit.id}')">Ajuste</button></div></td></tr>`;
+  }).join("") : H`<tr><td class="empty" colspan="10">No hay pagos que coincidan con los filtros.</td></tr>`;
   renderPaymentHistory();
   renderAdvancedAccounting();
 }
 
 function billingReportTitle() {
-  return { all: "Resumen completo", cash: "Pagos Cash", insurance: "Pagos de seguros", pending: "Balances pendientes" }[activeBillingTab] || "Resumen completo";
+  return T({ all: "Resumen completo", cash: "Pagos Cash", insurance: "Pagos de seguros", pending: "Balances pendientes" }[activeBillingTab] || "Resumen completo");
 }
 
 function billingReportHtml() {
   const totals = billingTotals(currentBillingRows);
   const totalPending = totals.patientPending + totals.insurancePending;
   const filters = [$("#billingDateFrom").value ? `Desde ${$("#billingDateFrom").value}` : "", $("#billingDateTo").value ? `Hasta ${$("#billingDateTo").value}` : "", $("#billingInsuranceFilter").value, $("#billingSearch").value].filter(Boolean).join(" · ");
-  return `<article class="billing-print-sheet"><header><div class="billing-print-brand">${state.settings.clinicLogo ? `<img src="${state.settings.clinicLogo}" alt="Logo de la clínica" />` : ""}<div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${escapeHtml([state.settings.clinicAddress, state.settings.clinicPhone, state.settings.clinicEmail].filter(Boolean).join(" · "))}</p></div></div><div><strong>REPORTE DE PAGOS</strong><span>${new Date().toLocaleDateString("es-US")}</span></div></header><div class="billing-print-context"><strong>${billingReportTitle()}</strong><span>${escapeHtml(filters || "Sin filtros adicionales")}</span></div><div class="billing-print-summary"><div><span>Total facturado</span><strong>${money(totals.billed)}</strong></div><div><span>Facturado Cash</span><strong>${money(totals.cashBilled)}</strong></div><div><span>Cobrado pacientes</span><strong>${money(totals.patientPaid)}</strong></div><div><span>Facturado seguros</span><strong>${money(totals.insuranceBilled)}</strong></div><div><span>Cobrado seguros</span><strong>${money(totals.insurancePaid)}</strong></div><div><span>Balance total</span><strong>${money(totalPending)}</strong><small>Pacientes ${money(totals.patientPending)} · Seguros ${money(totals.insurancePending)}</small></div></div><table><colgroup><col class="print-date" /><col class="print-patient" /><col class="print-type" /><col span="4" class="print-amount" /></colgroup><thead><tr><th>Fecha / Factura</th><th>Paciente / Servicio</th><th>Tipo</th><th>Facturado</th><th>Paciente</th><th>Seguro</th><th>Balance</th></tr></thead><tbody>${currentBillingRows.map((visit) => { const p = patient(visit.patientId); const value = billingVisitAmounts(visit); return `<tr><td>${new Date(visit.date).toLocaleDateString("es-US")}<small>${escapeHtml(invoiceNumber(visit))}</small></td><td><strong>${escapeHtml(p?.name || "Paciente eliminado")}</strong><small>${escapeHtml(visitItems(visit).map((item) => item.description).join(", ") || visit.reason || "Consulta")}</small></td><td>${value.type === "insurance" ? "Seguro" : "Cash"}</td><td>${money(value.total)}</td><td>${money(value.patientPaid)}</td><td>${money(value.insurancePaid)}</td><td>${money(value.patientPending + value.insurancePending)}</td></tr>`; }).join("") || `<tr><td colspan="7">No hay información para los filtros seleccionados.</td></tr>`}</tbody></table><footer>${currentBillingRows.length} registro(s) · Generado el ${new Date().toLocaleString("es-US")}</footer></article>`;
+  return H`<article class="billing-print-sheet"><header><div class="billing-print-brand">${state.settings.clinicLogo ? H`<img src="${state.settings.clinicLogo}" alt="Logo de la clínica" />` : ""}<div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${escapeHtml([state.settings.clinicAddress, state.settings.clinicPhone, state.settings.clinicEmail].filter(Boolean).join(" · "))}</p></div></div><div><strong>REPORTE DE PAGOS</strong><span>${new Date().toLocaleDateString(ClinicI18n.locale)}</span></div></header><div class="billing-print-context"><strong>${billingReportTitle()}</strong><span>${escapeHtml(filters || T("Sin filtros adicionales"))}</span></div><div class="billing-print-summary"><div><span>Total facturado</span><strong>${money(totals.billed)}</strong></div><div><span>Facturado Cash</span><strong>${money(totals.cashBilled)}</strong></div><div><span>Cobrado pacientes</span><strong>${money(totals.patientPaid)}</strong></div><div><span>Facturado seguros</span><strong>${money(totals.insuranceBilled)}</strong></div><div><span>Cobrado seguros</span><strong>${money(totals.insurancePaid)}</strong></div><div><span>Balance total</span><strong>${money(totalPending)}</strong><small>Pacientes ${money(totals.patientPending)} · Seguros ${money(totals.insurancePending)}</small></div></div><table><colgroup><col class="print-date" /><col class="print-patient" /><col class="print-type" /><col span="4" class="print-amount" /></colgroup><thead><tr><th>Fecha / Factura</th><th>Paciente / Servicio</th><th>Tipo</th><th>Facturado</th><th>Paciente</th><th>Seguro</th><th>Balance</th></tr></thead><tbody>${currentBillingRows.map((visit) => { const p = patient(visit.patientId); const value = billingVisitAmounts(visit); return H`<tr><td>${new Date(visit.date).toLocaleDateString(ClinicI18n.locale)}<small>${escapeHtml(invoiceNumber(visit))}</small></td><td><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong><small>${escapeHtml(visitItems(visit).map((item) => item.description).join(", ") || visit.reason || T("Consulta"))}</small></td><td>${value.type === "insurance" ? T("Seguro") : T("Cash")}</td><td>${money(value.total)}</td><td>${money(value.patientPaid)}</td><td>${money(value.insurancePaid)}</td><td>${money(value.patientPending + value.insurancePending)}</td></tr>`; }).join("") || H`<tr><td colspan="7">No hay información para los filtros seleccionados.</td></tr>`}</tbody></table><footer>${currentBillingRows.length} registro(s) · Generado el ${new Date().toLocaleString(ClinicI18n.locale)}</footer></article>`;
 }
 
 function printBillingReport() {
@@ -1646,7 +1651,7 @@ function addClinicLogoToPdf(pdf, x, y, maxWidth = 52, maxHeight = 36) {
 }
 
 function downloadBillingPdf() {
-  if (!window.jspdf?.jsPDF) { toast("No se pudo cargar el generador de PDF."); return; }
+  if (!window.jspdf?.jsPDF) { toast(T("No se pudo cargar el generador de PDF.")); return; }
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ unit: "pt", format: "letter", orientation: "landscape" });
   const totals = billingTotals(currentBillingRows);
@@ -1656,9 +1661,9 @@ function downloadBillingPdf() {
   let y = 38;
   const logoOffset = addClinicLogoToPdf(pdf, margin, 20, 54, 38);
   pdf.setTextColor(15, 118, 110); pdf.setFont("helvetica", "bold"); pdf.setFontSize(18); pdf.text(state.settings.clinicName || "Clinic Control", margin + logoOffset, y);
-  pdf.setTextColor(23, 32, 51); pdf.setFontSize(15); pdf.text("REPORTE DE PAGOS", right, y, { align: "right" });
+  pdf.setTextColor(23, 32, 51); pdf.setFontSize(15); pdf.text(T("REPORTE DE PAGOS"), right, y, { align: "right" });
   y += 18; pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(80, 95, 115);
-  pdf.text(`${billingReportTitle()} - ${new Date().toLocaleDateString("es-US")}`, margin + logoOffset, y);
+  pdf.text(S`${billingReportTitle()} - ${new Date().toLocaleDateString(ClinicI18n.locale)}`, margin + logoOffset, y);
   pdf.text([state.settings.clinicPhone, state.settings.clinicEmail].filter(Boolean).join(" - "), right, y, { align: "right" });
   y += 20; pdf.setDrawColor(15, 118, 110); pdf.setLineWidth(1.5); pdf.line(margin, y, right, y); y += 13;
   const cards = [
@@ -1673,48 +1678,48 @@ function downloadBillingPdf() {
   cards.forEach(([label, amount, color], index) => {
     const x = margin + index * (cardWidth + cardGap);
     pdf.setFillColor(248, 250, 252); pdf.setDrawColor(...color); pdf.setLineWidth(1); pdf.roundedRect(x, y, cardWidth, 46, 4, 4, "FD");
-    pdf.setTextColor(80, 95, 115); pdf.setFont("helvetica", "bold"); pdf.setFontSize(6.5); pdf.text(label, x + 8, y + 13);
+    pdf.setTextColor(80, 95, 115); pdf.setFont("helvetica", "bold"); pdf.setFontSize(6.5); pdf.text(T(label), x + 8, y + 13);
     pdf.setTextColor(...color); pdf.setFontSize(13); pdf.text(money(amount), x + 8, y + 33);
   });
   y += 60;
   pdf.setTextColor(80, 95, 115); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
-  pdf.text(`Balances separados: pacientes ${money(totals.patientPending)} - seguros ${money(totals.insurancePending)}`, margin, y); y += 16;
+  pdf.text(S`Balances separados: pacientes ${money(totals.patientPending)} - seguros ${money(totals.insurancePending)}`, margin, y); y += 16;
   const columns = [
-    { label: "FECHA / FACTURA", x: margin, width: 92, align: "left" },
-    { label: "PACIENTE / SERVICIO", x: margin + 92, width: 236, align: "left" },
-    { label: "TIPO", x: margin + 328, width: 58, align: "left" },
-    { label: "FACTURADO", x: margin + 386, width: 82, align: "right" },
-    { label: "PACIENTE", x: margin + 468, width: 82, align: "right" },
-    { label: "SEGURO", x: margin + 550, width: 82, align: "right" },
-    { label: "BALANCE", x: margin + 632, width: 84, align: "right" }
+    { label: T("FECHA / FACTURA"), x: margin, width: 92, align: "left" },
+    { label: T("PACIENTE / SERVICIO"), x: margin + 92, width: 236, align: "left" },
+    { label: T("TIPO"), x: margin + 328, width: 58, align: "left" },
+    { label: T("FACTURADO"), x: margin + 386, width: 82, align: "right" },
+    { label: T("PACIENTE"), x: margin + 468, width: 82, align: "right" },
+    { label: T("SEGURO"), x: margin + 550, width: 82, align: "right" },
+    { label: T("BALANCE"), x: margin + 632, width: 84, align: "right" }
   ];
   const drawHeader = () => {
     pdf.setFillColor(226, 232, 240); pdf.rect(margin, y, right - margin, 24, "F");
     pdf.setTextColor(23, 32, 51); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.2);
-    columns.forEach((column) => pdf.text(column.label, column.align === "right" ? column.x + column.width - 6 : column.x + 6, y + 15, { align: column.align }));
+    columns.forEach((column) => pdf.text(T(column.label), column.align === "right" ? column.x + column.width - 6 : column.x + 6, y + 15, { align: column.align }));
     y += 24;
   };
   drawHeader();
   currentBillingRows.forEach((visit) => {
     const p = patient(visit.patientId); const value = billingVisitAmounts(visit);
     const service = visitItems(visit).map((item) => item.description).join(", ") || visit.reason || "Consulta";
-    const patientNameLines = pdf.splitTextToSize(p?.name || "Paciente", columns[1].width - 12);
+    const patientNameLines = pdf.splitTextToSize(p?.name || T("Paciente"), columns[1].width - 12);
     const serviceLines = pdf.splitTextToSize(service, columns[1].width - 12);
     const contentLines = patientNameLines.length + serviceLines.length;
     const rowHeight = Math.max(34, contentLines * 8 + 12);
-    if (y + rowHeight > 566) { pdf.addPage(); y = 34; pdf.setTextColor(15, 118, 110); pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.text(`${state.settings.clinicName || "Clinic Control"} - Reporte de pagos`, margin, y); y += 14; drawHeader(); }
+    if (y + rowHeight > 566) { pdf.addPage(); y = 34; pdf.setTextColor(15, 118, 110); pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.text(S`${state.settings.clinicName || "Clinic Control"} - Reporte de pagos`, margin, y); y += 14; drawHeader(); }
     const rowTop = y;
-    const visitDate = new Date(visit.date).toLocaleDateString("es-US");
+    const visitDate = new Date(visit.date).toLocaleDateString(ClinicI18n.locale);
     pdf.setTextColor(23, 32, 51); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.4);
     pdf.text(visitDate, columns[0].x + 6, rowTop + 12); pdf.setTextColor(80, 95, 115); pdf.setFontSize(6.7); pdf.text(invoiceNumber(visit), columns[0].x + 6, rowTop + 23);
     pdf.setTextColor(23, 32, 51); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.text(patientNameLines, columns[1].x + 6, rowTop + 11);
     const serviceY = rowTop + 11 + patientNameLines.length * 8; pdf.setTextColor(80, 95, 115); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6.8); pdf.text(serviceLines, columns[1].x + 6, serviceY);
-    pdf.setTextColor(23, 32, 51); pdf.setFontSize(7.4); pdf.text(value.type === "insurance" ? "Seguro" : "Cash", columns[2].x + 6, rowTop + 15);
+    pdf.setTextColor(23, 32, 51); pdf.setFontSize(7.4); pdf.text(value.type === "insurance" ? T("Seguro") : T("Cash"), columns[2].x + 6, rowTop + 15);
     const amountY = rowTop + 15; [value.total, value.patientPaid, value.insurancePaid, value.patientPending + value.insurancePending].forEach((amount, index) => { const column = columns[index + 3]; pdf.text(money(amount), column.x + column.width - 6, amountY, { align: "right" }); });
     y += rowHeight; pdf.setDrawColor(226, 232, 240); pdf.line(margin, y, right, y);
   });
   const pages = pdf.getNumberOfPages();
-  for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setTextColor(100, 116, 139); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7); pdf.text(`Pagina ${page} de ${pages}`, right, 594, { align: "right" }); }
+  for (let page = 1; page <= pages; page += 1) { pdf.setPage(page); pdf.setTextColor(100, 116, 139); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7); pdf.text(S`Pagina ${page} de ${pages}`, right, 594, { align: "right" }); }
   pdf.save(`reporte-pagos-${activeBillingTab}-${localDateValue()}.pdf`);
 }
 
@@ -1750,16 +1755,16 @@ function renderPaymentHistory() {
   box.innerHTML = payments.length ? payments.map((entry) => {
     const p = patient(entry.patientId);
     const visit = state.visits.find((item) => item.id === entry.visitId);
-    return `<div class="payment-history-row"><div class="payment-source-icon ${entry.source}">${entry.source === "insurance" ? "S" : "$"}</div><div><strong>${escapeHtml(p?.name || "Paciente eliminado")}</strong><span>${fmtDate(entry.date)} · ${entry.initial ? "Pago inicial" : escapeHtml(paymentMethodDetail(entry))}${entry.reference && !entry.initial ? ` · ${escapeHtml(entry.reference)}` : ""}</span><small>${escapeHtml(invoiceNumber(visit || { id: entry.visitId }))}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}</small></div><strong>${money(entry.amount)}</strong></div>`;
-  }).join("") : `<div class="empty">No hay pagos que coincidan con el cliente y las fechas seleccionadas.</div>`;
+    return H`<div class="payment-history-row"><div class="payment-source-icon ${entry.source}">${entry.source === "insurance" ? "S" : "$"}</div><div><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong><span>${fmtDate(entry.date)} · ${entry.initial ? T("Pago inicial") : escapeHtml(paymentMethodDetail(entry))}${entry.reference && !entry.initial ? ` · ${escapeHtml(entry.reference)}` : ""}</span><small>${escapeHtml(invoiceNumber(visit || { id: entry.visitId }))}${entry.note ? ` · ${escapeHtml(entry.note)}` : ""}</small></div><strong>${money(entry.amount)}</strong></div>`;
+  }).join("") : H`<div class="empty">No hay pagos que coincidan con el cliente y las fechas seleccionadas.</div>`;
 }
 
 function paymentMethodLabel(method) {
-  return { cash: "Efectivo", card: "Tarjeta", check: "Cheque", transfer: "Transferencia", insurance_eft: "EFT de seguro", other: "Otro" }[method] || method || "Pago";
+  return T({ cash: "Efectivo", card: "Tarjeta", check: "Cheque", transfer: "Transferencia", insurance_eft: "EFT de seguro", other: "Otro" }[method] || method || "Pago");
 }
 
 function cardTypeLabel(type) {
-  return { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", other: "Otra" }[type] || "Tarjeta";
+  return T({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", other: "Otra" }[type] || "Tarjeta");
 }
 
 function paymentMethodDetail(entry) {
@@ -1784,14 +1789,14 @@ function renderVisitPaymentPanel(visit = null) {
   const box = $("#visitPaymentPanel");
   if (!box) return;
   if (!visit?.id) {
-    box.innerHTML = `<div class="visit-payment-unsaved"><strong>Guarda primero la consulta</strong><span>Después podrás registrar pagos en cualquier fecha y mantener aquí el historial completo.</span></div>`;
+    box.innerHTML = H`<div class="visit-payment-unsaved"><strong>Guarda primero la consulta</strong><span>Después podrás registrar pagos en cualquier fecha y mantener aquí el historial completo.</span></div>`;
     return;
   }
   const entries = state.payments.filter((entry) => entry.visitId === visit.id).sort((a, b) => new Date(b.date) - new Date(a.date));
   const laterPaymentsTotal = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const initialPayment = Math.max(0, totalPaid(visit) - laterPaymentsTotal);
   const currentBalance = balance(visit);
-  box.innerHTML = `
+  box.innerHTML = H`
     <div class="visit-payment-summary">
       <div><small>Total facturado</small><strong>${money(visit.total)}</strong></div>
       <div><small>Total recibido</small><strong>${money(totalPaid(visit))}</strong></div>
@@ -1799,9 +1804,9 @@ function renderVisitPaymentPanel(visit = null) {
       <button type="button" class="btn primary" onclick="openPaymentDialog('${visit.id}')" ${currentBalance <= 0 ? "disabled" : ""}>+ Registrar otro pago</button>
     </div>
     <div class="visit-payment-history">
-      ${entries.map((entry) => `<div class="visit-payment-entry"><div><strong>${fmtDate(entry.date)}</strong><small>${escapeHtml(paymentMethodDetail(entry))}${entry.reference ? ` · ${escapeHtml(entry.reference)}` : ""}</small>${entry.note ? `<span>${escapeHtml(entry.note)}</span>` : ""}</div><span class="badge ${entry.source === "insurance" ? "blue" : "green"}">${entry.source === "insurance" ? "Seguro" : "Paciente"}</span><strong>${money(entry.amount)}</strong></div>`).join("")}
-      ${initialPayment > 0 ? `<div class="visit-payment-entry initial-payment"><div><strong>${fmtDate(visit.date)}</strong><small>Pago registrado al crear la consulta</small></div><span class="badge green">Inicial</span><strong>${money(initialPayment)}</strong></div>` : ""}
-      ${!entries.length && initialPayment <= 0 ? `<div class="empty document-empty">Todavía no hay pagos registrados para esta consulta.</div>` : ""}
+      ${entries.map((entry) => H`<div class="visit-payment-entry"><div><strong>${fmtDate(entry.date)}</strong><small>${escapeHtml(paymentMethodDetail(entry))}${entry.reference ? ` · ${escapeHtml(entry.reference)}` : ""}</small>${entry.note ? H`<span>${escapeHtml(entry.note)}</span>` : ""}</div><span class="badge ${entry.source === "insurance" ? "blue" : "green"}">${entry.source === "insurance" ? T("Seguro") : T("Paciente")}</span><strong>${money(entry.amount)}</strong></div>`).join("")}
+      ${initialPayment > 0 ? H`<div class="visit-payment-entry initial-payment"><div><strong>${fmtDate(visit.date)}</strong><small>Pago registrado al crear la consulta</small></div><span class="badge green">Inicial</span><strong>${money(initialPayment)}</strong></div>` : ""}
+      ${!entries.length && initialPayment <= 0 ? H`<div class="empty document-empty">Todavía no hay pagos registrados para esta consulta.</div>` : ""}
     </div>`;
 }
 
@@ -1823,19 +1828,19 @@ function renderInvoices() {
     const p = patient(visit.patientId);
     const items = visitItems(visit);
     const due = balance(visit);
-    return `
+    return H`
       <tr>
         <td><strong>${escapeHtml(invoiceNumber(visit))}</strong></td>
         <td>${fmtDate(visit.date)}</td>
-        <td><strong>${escapeHtml(p?.name || "Paciente eliminado")}</strong></td>
-        <td>${items.length} concepto(s)<br><small>${escapeHtml(items.map((item) => item.description).join(", ") || "Sin detalle")}</small></td>
+        <td><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong></td>
+        <td>${items.length} concepto(s)<br><small>${escapeHtml(items.map((item) => item.description).join(", ") || T("Sin detalle"))}</small></td>
         <td>${money(visit.total)}</td>
         <td>${money(totalPaid(visit))}</td>
         <td><span class="badge ${due > 0 ? "red" : "green"}">${money(due)}</span></td>
         <td><button class="btn light invoice-view" onclick="openInvoice('${visit.id}')">Ver factura</button></td>
       </tr>
     `;
-  }).join("") : `<tr><td class="empty" colspan="8">No hay facturas registradas.</td></tr>`;
+  }).join("") : H`<tr><td class="empty" colspan="8">No hay facturas registradas.</td></tr>`;
 }
 
 function renderInvoicePatientOptions() {
@@ -1846,7 +1851,7 @@ function renderInvoicePatientOptions() {
   const options = state.patients
     .filter((item) => patientIdsWithVisits.has(item.id))
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
-  select.innerHTML = `<option value="">Todos los clientes</option>${options.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`;
+  select.innerHTML = H`<option value="">Todos los clientes</option>${options.map((item) => H`<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`;
   if (options.some((item) => item.id === selected)) select.value = selected;
   enablePatientSelectSearch(select, { placeholder: "Buscar cliente...", ariaLabel: "Buscar cliente para filtrar facturas" });
 }
@@ -1867,30 +1872,30 @@ function openInvoice(id) {
   ].filter(Boolean).join(" · ");
   activeInvoiceId = id;
   $("#invoiceDialogTitle").textContent = invoiceNumber(visit);
-  $("#invoiceDetail").innerHTML = `
+  $("#invoiceDetail").innerHTML = H`
     <article class="invoice-sheet logo-${design.logoPosition}" style="--invoice-accent:${escapeHtml(design.accent)}">
       <header>
-        <div class="invoice-clinic-brand">${state.settings.clinicLogo ? `<img src="${state.settings.clinicLogo}" alt="Logo" />` : ""}<div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${escapeHtml(clinicContacts)}</p></div></div>
+        <div class="invoice-clinic-brand">${state.settings.clinicLogo ? H`<img src="${state.settings.clinicLogo}" alt="Logo" />` : ""}<div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${escapeHtml(clinicContacts)}</p></div></div>
         <div class="invoice-heading"><strong>FACTURA</strong><span>${escapeHtml(invoiceNumber(visit))}</span></div>
       </header>
       <div class="invoice-meta">
-        <div><small>Paciente</small><strong>${escapeHtml(p?.name || "Paciente eliminado")}</strong><span>${escapeHtml(p?.address || "Dirección no indicada")}</span><span>${escapeHtml(p?.phone || "")}</span><span>${escapeHtml(payerLabel(p))}</span></div>
-        <div><small>Fecha y hora</small><strong>${fmtDate(visit.date)}</strong><span>Doctor: ${escapeHtml(visit.doctor || "Sin doctor asignado")}</span>${design.showInsurance ? `<span>${escapeHtml(payerLabel(p))}</span>` : ""}</div>
+        <div><small>Paciente</small><strong>${escapeHtml(p?.name || T("Paciente eliminado"))}</strong><span>${escapeHtml(p?.address || T("Dirección no indicada"))}</span><span>${escapeHtml(p?.phone || "")}</span><span>${escapeHtml(payerLabel(p))}</span></div>
+        <div><small>Fecha y hora</small><strong>${fmtDate(visit.date)}</strong><span>Doctor: ${escapeHtml(visit.doctor || T("Sin doctor asignado"))}</span>${design.showInsurance ? H`<span>${escapeHtml(payerLabel(p))}</span>` : ""}</div>
       </div>
       <table class="invoice-items">
         <thead><tr><th>Descripción del servicio</th><th>Cantidad</th><th>Precio</th><th>Total</th></tr></thead>
-        <tbody>${items.map((item) => `<tr><td>${escapeHtml(item.description)}</td><td>${item.quantity}</td><td>${money(item.unitPrice)}</td><td>${money(item.price)}</td></tr>`).join("")}${adjustments.filter((item) => item.type !== "refund").map((item) => `<tr class="invoice-adjustment"><td>${item.type === "discount" ? "Descuento" : "Anulación de saldo"}: ${escapeHtml(item.reason)}</td><td>1</td><td>-${money(item.amount)}</td><td>-${money(item.amount)}</td></tr>`).join("")}</tbody>
+        <tbody>${items.map((item) => H`<tr><td>${escapeHtml(item.description)}</td><td>${item.quantity}</td><td>${money(item.unitPrice)}</td><td>${money(item.price)}</td></tr>`).join("")}${adjustments.filter((item) => item.type !== "refund").map((item) => H`<tr class="invoice-adjustment"><td>${item.type === "discount" ? T("Descuento") : T("Anulación de saldo")}: ${escapeHtml(item.reason)}</td><td>1</td><td>-${money(item.amount)}</td><td>-${money(item.amount)}</td></tr>`).join("")}</tbody>
       </table>
       <div class="invoice-summary">
         <div><span>Total ajustado</span><strong>${money(invoiceValue.total)}</strong></div>
         <div><span>Pagado por paciente</span><strong>${money(invoiceValue.patientPaid)}</strong></div>
-        ${paymentType(visit) === "insurance" ? `<div><span>Pagado por seguro</span><strong>${money(invoiceValue.insurancePaid)}</strong></div><div><span>Copago esperado</span><strong>${money(visit.copay)}</strong></div>` : ""}
-        ${adjustmentAmount(visit.id, ["refund"]) ? `<div><span>Reembolsos</span><strong>-${money(adjustmentAmount(visit.id, ["refund"]))}</strong></div>` : ""}
+        ${paymentType(visit) === "insurance" ? H`<div><span>Pagado por seguro</span><strong>${money(invoiceValue.insurancePaid)}</strong></div><div><span>Copago esperado</span><strong>${money(visit.copay)}</strong></div>` : ""}
+        ${adjustmentAmount(visit.id, ["refund"]) ? H`<div><span>Reembolsos</span><strong>-${money(adjustmentAmount(visit.id, ["refund"]))}</strong></div>` : ""}
         <div class="invoice-balance"><span>Balance</span><strong>${money(due)}</strong></div>
       </div>
-      ${paymentType(visit) === "insurance" ? `<div class="invoice-claim"><div><small>Reclamación</small><strong>${escapeHtml(visit.claimNumber || "Sin número")}</strong></div><div><small>Estado</small><strong>${escapeHtml({draft:"Preparada",submitted:"Enviada",processing:"En proceso",paid:"Pagada",partial:"Pago parcial",rejected:"Rechazada"}[visit.claimStatus] || "No indicado")}</strong></div></div>` : ""}
-      ${visit.notes ? `<div class="invoice-notes"><strong>Notas</strong><p>${escapeHtml(visit.notes)}</p></div>` : ""}
-      ${design.footer ? `<footer class="invoice-footer">${escapeHtml(design.footer)}</footer>` : ""}
+      ${paymentType(visit) === "insurance" ? H`<div class="invoice-claim"><div><small>Reclamación</small><strong>${escapeHtml(visit.claimNumber || T("Sin número"))}</strong></div><div><small>Estado</small><strong>${escapeHtml({draft:"Preparada",submitted:"Enviada",processing:"En proceso",paid:"Pagada",partial:"Pago parcial",rejected:"Rechazada"}[visit.claimStatus] || T("No indicado"))}</strong></div></div>` : ""}
+      ${visit.notes ? H`<div class="invoice-notes"><strong>Notas</strong><p>${escapeHtml(visit.notes)}</p></div>` : ""}
+      ${design.footer ? H`<footer class="invoice-footer">${escapeHtml(design.footer === "Gracias por confiar en nuestra clínica." ? T(design.footer) : design.footer)}</footer>` : ""}
     </article>`;
   $("#invoiceDialog").showModal();
 }
@@ -1899,7 +1904,7 @@ function downloadInvoicePdf(id = activeInvoiceId) {
   const visit = state.visits.find((item) => item.id === id);
   if (!visit) return;
   if (!window.jspdf?.jsPDF) {
-    toast("No se pudo cargar el generador de PDF.");
+    toast(T("No se pudo cargar el generador de PDF."));
     return;
   }
 
@@ -1922,7 +1927,7 @@ function downloadInvoicePdf(id = activeInvoiceId) {
   else addClinicLogoToPdf(pdf, 466, 18, 46, 32);
   pdf.text(state.settings.clinicName || "Clinic Control", clinicNameX, y);
   pdf.setFontSize(17);
-  pdf.text("FACTURA", right, y, { align: "right" });
+  pdf.text(T("FACTURA"), right, y, { align: "right" });
   y += 22;
   pdf.setTextColor(80, 95, 115);
   pdf.setFontSize(10);
@@ -1937,32 +1942,32 @@ function downloadInvoicePdf(id = activeInvoiceId) {
 
   pdf.setTextColor(23, 32, 51);
   pdf.setFont("helvetica", "bold");
-  pdf.text(`Cliente: ${p?.name || "Paciente eliminado"}`, left, y);
-  pdf.text(`Fecha: ${fmtDate(visit.date)}`, 320, y);
+  pdf.text(S`Cliente: ${p?.name || T("Paciente eliminado")}`, left, y);
+  pdf.text(S`Fecha: ${fmtDate(visit.date)}`, 320, y);
   y += 17;
   pdf.setFont("helvetica", "normal");
-  pdf.text(`Teléfono: ${p?.phone || "No indicado"}`, left, y);
-  pdf.text(`Doctor: ${visit.doctor || "No indicado"}`, 320, y);
+  pdf.text(S`Teléfono: ${p?.phone || T("No indicado")}`, left, y);
+  pdf.text(S`Doctor: ${visit.doctor || T("No indicado")}`, 320, y);
   y += 17;
-  const patientAddressLines = pdf.splitTextToSize(`Dirección: ${p?.address || "No indicada"}`, 250);
+  const patientAddressLines = pdf.splitTextToSize(S`Dirección: ${p?.address || T("No indicada")}`, 250);
   pdf.text(patientAddressLines, left, y);
   y += Math.max(17, patientAddressLines.length * 12);
-  if (design.showInsurance) pdf.text(`Responsable de pago: ${payerLabel(p)}`, left, y);
-  if (design.showInsurance && p?.payerType === "insurance" && p.insuranceMemberId) pdf.text(`ID de miembro: ${p.insuranceMemberId}`, 320, y);
+  if (design.showInsurance) pdf.text(S`Responsable de pago: ${payerLabel(p)}`, left, y);
+  if (design.showInsurance && p?.payerType === "insurance" && p.insuranceMemberId) pdf.text(S`ID de miembro: ${p.insuranceMemberId}`, 320, y);
   y += 32;
 
   pdf.setFillColor(241, 245, 249);
   pdf.rect(left, y - 14, right - left, 24, "F");
   pdf.setFont("helvetica", "bold");
-  pdf.text("Descripción del servicio", left + 8, y);
-  pdf.text("Cant.", 390, y, { align: "right" });
-  pdf.text("Precio", 470, y, { align: "right" });
-  pdf.text("Total", right - 8, y, { align: "right" });
+  pdf.text(T("Descripción del servicio"), left + 8, y);
+  pdf.text(T("Cant."), 390, y, { align: "right" });
+  pdf.text(T("Precio"), 470, y, { align: "right" });
+  pdf.text(T("Total"), right - 8, y, { align: "right" });
   y += 26;
 
   pdf.setFont("helvetica", "normal");
   items.forEach((item) => {
-    const lines = pdf.splitTextToSize(item.description || "Servicio", 280);
+    const lines = pdf.splitTextToSize(item.description || T("Servicio"), 280);
     const rowHeight = Math.max(22, lines.length * 13 + 8);
     if (y + rowHeight > 700) {
       pdf.addPage();
@@ -1980,18 +1985,18 @@ function downloadInvoicePdf(id = activeInvoiceId) {
   y += 8;
   pdf.setFont("helvetica", "bold");
   const invoiceAdjustments = visitAdjustments(visit.id);
-  if (invoiceAdjustments.length) { pdf.setFont("helvetica", "normal"); pdf.text(`Ajustes: ${money(invoiceAdjustments.reduce((sum, item) => sum + Number(item.amount || 0), 0))}`, right, y, { align: "right" }); y += 18; pdf.setFont("helvetica", "bold"); }
-  pdf.text(`Total ajustado: ${money(effectiveVisitTotal(visit))}`, right, y, { align: "right" });
+  if (invoiceAdjustments.length) { pdf.setFont("helvetica", "normal"); pdf.text(S`Ajustes: ${money(invoiceAdjustments.reduce((sum, item) => sum + Number(item.amount || 0), 0))}`, right, y, { align: "right" }); y += 18; pdf.setFont("helvetica", "bold"); }
+  pdf.text(S`Total ajustado: ${money(effectiveVisitTotal(visit))}`, right, y, { align: "right" });
   y += 18;
-  pdf.text(`Pagado: ${money(totalPaid(visit))}`, right, y, { align: "right" });
+  pdf.text(S`Pagado: ${money(totalPaid(visit))}`, right, y, { align: "right" });
   y += 18;
   pdf.setTextColor(balance(visit) > 0 ? 185 : 4, balance(visit) > 0 ? 28 : 120, balance(visit) > 0 ? 28 : 87);
-  pdf.text(`Balance: ${money(balance(visit))}`, right, y, { align: "right" });
+  pdf.text(S`Balance: ${money(balance(visit))}`, right, y, { align: "right" });
   if (design.footer) {
     pdf.setTextColor(80, 95, 115);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
-    pdf.text(design.footer, 306, 750, { align: "center", maxWidth: 500 });
+    pdf.text(design.footer === "Gracias por confiar en nuestra clínica." ? T(design.footer) : design.footer, 306, 750, { align: "center", maxWidth: 500 });
   }
 
   pdf.save(`${invoiceNumber(visit)}-${(p?.name || "cliente").replace(/[^a-z0-9áéíóúñ]+/gi, "-")}.pdf`);
@@ -2003,7 +2008,7 @@ function renderReports() {
   if (!$("#reportDateTo").value) $("#reportDateTo").value = localDateValue(now);
   const from = $("#reportDateFrom").value; const to = $("#reportDateTo").value; const doctor = $("#reportDoctorFilter").value;
   const inRange = (value) => { const date = String(value || "").slice(0, 10); return (!from || date >= from) && (!to || date <= to); };
-  const doctors = appointmentDoctors(); const doctorSelect = $("#reportDoctorFilter"); const selectedDoctor = doctorSelect.value; doctorSelect.innerHTML = `<option value="">Todos los profesionales</option>${doctors.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`; doctorSelect.value = doctors.includes(selectedDoctor) ? selectedDoctor : "";
+  const doctors = appointmentDoctors(); const doctorSelect = $("#reportDoctorFilter"); const selectedDoctor = doctorSelect.value; doctorSelect.innerHTML = H`<option value="">Todos los profesionales</option>${doctors.map((name) => H`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`; doctorSelect.value = doctors.includes(selectedDoctor) ? selectedDoctor : "";
   const visits = state.visits.filter((visit) => inRange(visit.date) && (!doctor || visit.doctor === doctor)); const appointments = state.appointments.filter((item) => inRange(item.date) && (!doctor || item.doctor === doctor)); const financial = totals(visits);
   const expenses = state.expenses.filter((item) => inRange(item.date)).reduce((sum, item) => sum + Number(item.amount || 0), 0); const receipts = accountingReceipts(from, to); const profit = receipts - expenses;
   const completedAppointments = appointments.filter((item) => item.status === "completed").length; const noShows = appointments.filter((item) => item.status === "no_show").length; const cancelled = appointments.filter((item) => item.status === "cancelled").length; const attendanceBase = completedAppointments + noShows; const noShowRate = attendanceBase ? noShows / attendanceBase * 100 : 0;
@@ -2011,26 +2016,26 @@ function renderReports() {
   const aging = { "0–30 días": 0, "31–60 días": 0, "61–90 días": 0, "+90 días": 0 }; const todayTime = new Date(`${localDateValue()}T12:00:00`).getTime(); state.visits.forEach((visit) => { const due = balance(visit); if (!due) return; const age = Math.floor((todayTime - new Date(visit.date).getTime()) / 86400000); aging[age <= 30 ? "0–30 días" : age <= 60 ? "31–60 días" : age <= 90 ? "61–90 días" : "+90 días"] += due; });
   const providerRows = doctors.map((name) => { const providerVisits = visits.filter((visit) => visit.doctor === name); const providerAppointments = appointments.filter((item) => item.doctor === name); return { name, visits: providerVisits.length, billed: totals(providerVisits).billed, noShows: providerAppointments.filter((item) => item.status === "no_show").length }; }).filter((row) => row.visits || row.noShows).sort((a, b) => b.visits - a.visits);
   const monthlyRevenue = analyticsMonthlySeries(visits);
-  $("#reportCard").innerHTML = `<div class="analytics-heading"><div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${from} a ${to}${doctor ? ` · ${escapeHtml(doctor)}` : ""}</p></div><small>Generado ${new Date().toLocaleString("es-US")}</small></div><div class="analytics-kpis">${analyticsKpi("Consultas", visits.length, `${newPatients} pacientes nuevos`)}${analyticsKpi("Facturado", money(financial.billed), `Cobrado ${money(receipts)}`)}${analyticsKpi("Utilidad", money(profit), `Gastos ${money(expenses)}`, profit < 0 ? "danger" : "success")}${analyticsKpi("No asistió", `${noShowRate.toFixed(1)}%`, `${noShows} ausencia(s)`)}${analyticsKpi("Pendientes", pendingForms + overdueTasks, `${pendingForms} formularios · ${overdueTasks} tareas`)}</div><div class="analytics-grid"><article class="analytics-card span-2"><h3>Facturación por mes</h3>${analyticsBarChart(monthlyRevenue)}</article><article class="analytics-card"><h3>Cuentas por cobrar</h3>${analyticsBarChart(Object.entries(aging).map(([label, value]) => ({ label, value })), true)}</article><article class="analytics-card"><h3>Agenda</h3><div class="analytics-stat-list"><div><span>Atendidas</span><strong>${completedAppointments}</strong></div><div><span>Canceladas</span><strong>${cancelled}</strong></div><div><span>No asistió</span><strong>${noShows}</strong></div></div></article><article class="analytics-card"><h3>Productividad por profesional</h3>${providerRows.length ? `<div class="analytics-table">${providerRows.map((row) => `<div><span>${escapeHtml(row.name)}</span><strong>${row.visits} consultas</strong><small>${money(row.billed)} · ${row.noShows} ausencias</small></div>`).join("")}</div>` : `<div class="empty">Sin actividad profesional.</div>`}</article></div>`;
+  $("#reportCard").innerHTML = H`<div class="analytics-heading"><div><h2>${escapeHtml(state.settings.clinicName || "Clinic Control")}</h2><p>${S`${from} a ${to}`}${doctor ? ` · ${escapeHtml(doctor)}` : ""}</p></div><small>Generado ${new Date().toLocaleString(ClinicI18n.locale)}</small></div><div class="analytics-kpis">${analyticsKpi(T("Consultas"), visits.length, S`${newPatients} pacientes nuevos`)}${analyticsKpi(T("Facturado"), money(financial.billed), S`Cobrado ${money(receipts)}`)}${analyticsKpi(T("Utilidad"), money(profit), S`Gastos ${money(expenses)}`, profit < 0 ? "danger" : "success")}${analyticsKpi(T("No asistió"), S`${noShowRate.toFixed(1)}%`, S`${noShows} ausencia(s)`)}${analyticsKpi(T("Pendientes"), pendingForms + overdueTasks, S`${pendingForms} formularios · ${overdueTasks} tareas`)}</div><div class="analytics-grid"><article class="analytics-card span-2"><h3>Facturación por mes</h3>${analyticsBarChart(monthlyRevenue)}</article><article class="analytics-card"><h3>Cuentas por cobrar</h3>${analyticsBarChart(Object.entries(aging).map(([label, value]) => ({ label: T(label), value })), true)}</article><article class="analytics-card"><h3>Agenda</h3><div class="analytics-stat-list"><div><span>Atendidas</span><strong>${completedAppointments}</strong></div><div><span>Canceladas</span><strong>${cancelled}</strong></div><div><span>No asistió</span><strong>${noShows}</strong></div></div></article><article class="analytics-card"><h3>Productividad por profesional</h3>${providerRows.length ? H`<div class="analytics-table">${providerRows.map((row) => H`<div><span>${escapeHtml(row.name)}</span><strong>${row.visits} consultas</strong><small>${money(row.billed)} · ${row.noShows} ausencias</small></div>`).join("")}</div>` : H`<div class="empty">Sin actividad profesional.</div>`}</article></div>`;
 }
 
-function analyticsKpi(label, value, hint, tone = "") { return `<div class="analytics-kpi ${tone}"><small>${label}</small><strong>${value}</strong><span>${hint}</span></div>`; }
+function analyticsKpi(label, value, hint, tone = "") { return H`<div class="analytics-kpi ${tone}"><small>${label}</small><strong>${value}</strong><span>${hint}</span></div>`; }
 function analyticsMonthlySeries(visits) { const months = new Map(); visits.forEach((visit) => { const key = String(visit.date).slice(0, 7); months.set(key, (months.get(key) || 0) + effectiveVisitTotal(visit)); }); return [...months.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, value]) => ({ label, value })); }
-function analyticsBarChart(rows, currency = false) { const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1); return rows.length ? `<div class="analytics-bars">${rows.map((row) => `<div><span>${escapeHtml(row.label)}</span><i><b style="width:${Math.max(2, Number(row.value || 0) / max * 100)}%"></b></i><strong>${currency ? money(row.value) : money(row.value)}</strong></div>`).join("")}</div>` : `<div class="empty">Sin datos para este período.</div>`; }
+function analyticsBarChart(rows, currency = false) { const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1); return rows.length ? H`<div class="analytics-bars">${rows.map((row) => H`<div><span>${escapeHtml(row.label)}</span><i><b style="width:${Math.max(2, Number(row.value || 0) / max * 100)}%"></b></i><strong>${currency ? money(row.value) : money(row.value)}</strong></div>`).join("")}</div>` : H`<div class="empty">Sin datos para este período.</div>`; }
 
 function exportAnalyticsCsv() {
-  const from = $("#reportDateFrom").value; const to = $("#reportDateTo").value; const doctor = $("#reportDoctorFilter").value; const rows = [["Fecha", "Paciente", "Profesional", "Servicio", "Facturado", "Pagado", "Balance"]];
+  const from = $("#reportDateFrom").value; const to = $("#reportDateTo").value; const doctor = $("#reportDoctorFilter").value; const rows = [["Fecha", "Paciente", "Profesional", "Servicio", "Facturado", "Pagado", "Balance"].map(T)];
   state.visits.filter((visit) => { const date = String(visit.date).slice(0, 10); return (!from || date >= from) && (!to || date <= to) && (!doctor || visit.doctor === doctor); }).forEach((visit) => rows.push([visit.date, patient(visit.patientId)?.name || "", visit.doctor || "", visit.reason || "", effectiveVisitTotal(visit), totalPaid(visit), balance(visit)]));
   const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\r\n"); const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `clinic-control-analytics-${from || "inicio"}-${to || "hoy"}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
-const formCategoryLabels = { intake: "Admisión", medical: "Historial clínico", consent: "Consentimiento", followup: "Seguimiento", other: "Otro" };
-const communicationChannelLabels = { phone: "Llamada", email: "Correo", sms: "SMS", whatsapp: "WhatsApp", in_person: "En persona" };
+const formCategoryLabels = ClinicI18n.labels({ intake: "Admisión", medical: "Historial clínico", consent: "Consentimiento", followup: "Seguimiento", other: "Otro" });
+const communicationChannelLabels = ClinicI18n.labels({ phone: "Llamada", email: "Correo", sms: "SMS", whatsapp: "WhatsApp", in_person: "En persona" });
 const communicationIcons = { phone: "☎", email: "✉", sms: "▣", whatsapp: "◉", in_person: "●" };
 
 function renderFormTemplates() {
   const box = $("#formTemplatesList"); if (!box) return;
-  box.innerHTML = state.formTemplates.length ? state.formTemplates.map((template) => `<div class="form-template-row"><span><strong>${escapeHtml(template.name)}</strong><small>${formCategoryLabels[template.category] || "Formulario"} · ${(template.questions || []).length} pregunta(s)</small></span><button class="btn light" type="button" onclick="openFormTemplateDialog('${template.id}')">Editar</button><button class="btn light" type="button" onclick="deleteFormTemplate('${template.id}')">Eliminar</button></div>`).join("") : `<div class="empty">Todavía no hay plantillas digitales.</div>`;
+  box.innerHTML = state.formTemplates.length ? state.formTemplates.map((template) => H`<div class="form-template-row"><span><strong>${escapeHtml(template.name)}</strong><small>${formCategoryLabels[template.category] || T("Formulario")} · ${(template.questions || []).length} pregunta(s)</small></span><button class="btn light" type="button" onclick="openFormTemplateDialog('${template.id}')">Editar</button><button class="btn light" type="button" onclick="deleteFormTemplate('${template.id}')">Eliminar</button></div>`).join("") : H`<div class="empty">Todavía no hay plantillas digitales.</div>`;
 }
 
 function openFormTemplateDialog(id = "") {
@@ -2042,33 +2047,33 @@ function openFormTemplateDialog(id = "") {
 
 function addFormQuestionRow(question = {}) {
   const row = document.createElement("div"); row.className = "form-question-row"; row.dataset.questionId = question.id || uid();
-  row.innerHTML = `<input class="question-label" placeholder="Escribe la pregunta" value="${escapeHtml(question.label || "")}" /><select class="question-type"><option value="text" ${question.type === "text" ? "selected" : ""}>Texto corto</option><option value="textarea" ${question.type === "textarea" ? "selected" : ""}>Texto largo</option><option value="yesno" ${question.type === "yesno" ? "selected" : ""}>Sí / No</option><option value="date" ${question.type === "date" ? "selected" : ""}>Fecha</option><option value="number" ${question.type === "number" ? "selected" : ""}>Número</option></select><label><input class="question-required" type="checkbox" ${question.required ? "checked" : ""} /> Obligatoria</label><button type="button" class="icon-btn" title="Eliminar pregunta" onclick="this.closest('.form-question-row').remove()">⌫</button>`;
+  row.innerHTML = H`<input class="question-label" placeholder="Escribe la pregunta" value="${escapeHtml(question.label || "")}" /><select class="question-type"><option value="text" ${question.type === "text" ? "selected" : ""}>Texto corto</option><option value="textarea" ${question.type === "textarea" ? "selected" : ""}>Texto largo</option><option value="yesno" ${question.type === "yesno" ? "selected" : ""}>Sí / No</option><option value="date" ${question.type === "date" ? "selected" : ""}>Fecha</option><option value="number" ${question.type === "number" ? "selected" : ""}>Número</option></select><label><input class="question-required" type="checkbox" ${question.required ? "checked" : ""} /> Obligatoria</label><button type="button" class="icon-btn" title="Eliminar pregunta" onclick="this.closest('.form-question-row').remove()">⌫</button>`;
   $("#formQuestionsBuilder").append(row);
 }
 
 async function saveFormTemplateFromDialog() {
   const id = $("#formTemplateId").value || uid();
   const questions = Array.from($$("#formQuestionsBuilder .form-question-row")).map((row) => ({ id: row.dataset.questionId, label: row.querySelector(".question-label").value.trim(), type: row.querySelector(".question-type").value, required: row.querySelector(".question-required").checked })).filter((question) => question.label);
-  if (!$("#formTemplateName").value.trim() || !questions.length) return toast("Agrega un nombre y por lo menos una pregunta.");
+  if (!$("#formTemplateName").value.trim() || !questions.length) return toast(T("Agrega un nombre y por lo menos una pregunta."));
   const existing = state.formTemplates.find((item) => item.id === id);
   const data = { id, name: $("#formTemplateName").value.trim(), category: $("#formTemplateCategory").value, description: $("#formTemplateDescription").value.trim(), questions, createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: existing?.createdBy || auth.currentUser.uid };
   await getCollectionRef("formTemplates").doc(id).set(data, { merge: true });
   state.formTemplates = [...state.formTemplates.filter((item) => item.id !== id), data];
   recordActivity({ action: existing ? "updated" : "created", entityType: "form", entityId: id, title: existing ? "Plantilla actualizada" : "Plantilla creada", detail: data.name }).catch(console.error);
-  $("#formTemplateDialog").close(); toast("Plantilla guardada."); if (pendingRoomIpadId) { const roomId = pendingRoomIpadId; pendingRoomIpadId = null; openIpadLaunch(roomId); }
+  $("#formTemplateDialog").close(); toast(T("Plantilla guardada.")); if (pendingRoomIpadId) { const roomId = pendingRoomIpadId; pendingRoomIpadId = null; openIpadLaunch(roomId); }
 }
 
 async function deleteFormTemplate(id) {
   const template = state.formTemplates.find((item) => item.id === id);
-  if (!template || !confirm(`¿Eliminar la plantilla ${template.name}? Las respuestas ya guardadas se conservarán.`)) return;
+  if (!template || !confirm(S`¿Eliminar la plantilla ${template.name}? Las respuestas ya guardadas se conservarán.`)) return;
   await getCollectionRef("formTemplates").doc(id).delete();
-  recordActivity({ action: "deleted", entityType: "form", entityId: id, title: "Plantilla eliminada", detail: template.name }).catch(console.error); toast("Plantilla eliminada.");
+  recordActivity({ action: "deleted", entityType: "form", entityId: id, title: "Plantilla eliminada", detail: template.name }).catch(console.error); toast(T("Plantilla eliminada."));
 }
 
 function assignDigitalForm(patientId) {
-  if (!state.formTemplates.length) return toast("Crea primero una plantilla desde Ajustes.");
-  activePatientFormResponseId = null; $("#patientDigitalForm").dataset.mode = "assign"; $("#patientFormTitle").textContent = "Asignar formulario";
-  $("#patientFormBody").innerHTML = `<div class="form-assignment-list">${state.formTemplates.map((template) => `<button type="button" onclick="createPatientFormResponse('${template.id}','${patientId}')"><strong>${escapeHtml(template.name)}</strong><small>${formCategoryLabels[template.category] || "Formulario"} · ${(template.questions || []).length} preguntas</small></button>`).join("")}</div>`;
+  if (!state.formTemplates.length) return toast(T("Crea primero una plantilla desde Ajustes."));
+  activePatientFormResponseId = null; $("#patientDigitalForm").dataset.mode = "assign"; $("#patientFormTitle").textContent = T("Asignar formulario");
+  $("#patientFormBody").innerHTML = H`<div class="form-assignment-list">${state.formTemplates.map((template) => H`<button type="button" onclick="createPatientFormResponse('${template.id}','${patientId}')"><strong>${escapeHtml(template.name)}</strong><small>${formCategoryLabels[template.category] || T("Formulario")} · ${(template.questions || []).length} preguntas</small></button>`).join("")}</div>`;
   $("#patientDigitalForm button[type='submit']").classList.add("hidden"); $("#patientFormDialog").showModal();
 }
 
@@ -2080,16 +2085,16 @@ async function createPatientFormResponse(templateId, patientId) {
 
 function openPatientDigitalForm(id) {
   const response = state.formResponses.find((item) => item.id === id); if (!response) return;
-  activePatientFormResponseId = id; $("#patientDigitalForm").dataset.mode = "response"; $("#patientDigitalForm button[type='submit']").classList.remove("hidden"); $("#patientFormTitle").textContent = response.templateName || "Formulario";
-  $("#patientFormBody").innerHTML = `${response.description ? `<p class="digital-form-description">${escapeHtml(response.description)}</p>` : ""}<div class="digital-question-list">${(response.questions || []).map((question, index) => digitalQuestionHtml(question, response.answers?.[question.id] || "", index)).join("")}</div>`;
+  activePatientFormResponseId = id; $("#patientDigitalForm").dataset.mode = "response"; $("#patientDigitalForm button[type='submit']").classList.remove("hidden"); $("#patientFormTitle").textContent = response.templateName || T("Formulario");
+  $("#patientFormBody").innerHTML = H`${response.description ? H`<p class="digital-form-description">${escapeHtml(response.description)}</p>` : ""}<div class="digital-question-list">${(response.questions || []).map((question, index) => digitalQuestionHtml(question, response.answers?.[question.id] || "", index)).join("")}</div>`;
   if (!$("#patientFormDialog").open) $("#patientFormDialog").showModal();
 }
 
 function digitalQuestionHtml(question, value, index) {
-  const label = `<span>${index + 1}. ${escapeHtml(question.label)}${question.required ? " *" : ""}</span>`;
-  if (question.type === "textarea") return `<label class="digital-question">${label}<textarea data-answer-id="${question.id}" rows="3">${escapeHtml(value)}</textarea></label>`;
-  if (question.type === "yesno") return `<label class="digital-question">${label}<select data-answer-id="${question.id}"><option value="">Seleccionar</option><option value="Sí" ${value === "Sí" ? "selected" : ""}>Sí</option><option value="No" ${value === "No" ? "selected" : ""}>No</option></select></label>`;
-  return `<label class="digital-question">${label}<input data-answer-id="${question.id}" type="${question.type === "date" ? "date" : question.type === "number" ? "number" : "text"}" value="${escapeHtml(value)}" /></label>`;
+  const label = H`<span>${index + 1}. ${escapeHtml(question.label)}${question.required ? " *" : ""}</span>`;
+  if (question.type === "textarea") return H`<label class="digital-question">${label}<textarea data-answer-id="${question.id}" rows="3">${escapeHtml(value)}</textarea></label>`;
+  if (question.type === "yesno") return H`<label class="digital-question">${label}<select data-answer-id="${question.id}"><option value="">Seleccionar</option><option value="Sí" ${value === "Sí" ? "selected" : ""}>Sí</option><option value="No" ${value === "No" ? "selected" : ""}>No</option></select></label>`;
+  return H`<label class="digital-question">${label}<input data-answer-id="${question.id}" type="${question.type === "date" ? "date" : question.type === "number" ? "number" : "text"}" value="${escapeHtml(value)}" /></label>`;
 }
 
 async function savePatientDigitalForm() {
@@ -2097,7 +2102,7 @@ async function savePatientDigitalForm() {
   const answers = Object.fromEntries(Array.from($$("#patientFormBody [data-answer-id]")).map((input) => [input.dataset.answerId, input.value.trim()]));
   const complete = (response.questions || []).filter((question) => question.required).every((question) => answers[question.id]);
   const data = { answers, status: complete ? "completed" : "pending", updatedAt: new Date().toISOString(), completedAt: complete ? new Date().toISOString() : null, completedBy: complete ? auth.currentUser.uid : null };
-  await getCollectionRef("formResponses").doc(response.id).set(data, { merge: true }); recordActivity({ action: complete ? "completed" : "updated", entityType: "form", entityId: response.id, patientId: response.patientId, title: complete ? "Formulario completado" : "Formulario guardado", detail: response.templateName }).catch(console.error); $("#patientFormDialog").close(); toast(complete ? "Formulario completado." : "Respuestas guardadas; faltan campos obligatorios.");
+  await getCollectionRef("formResponses").doc(response.id).set(data, { merge: true }); recordActivity({ action: complete ? "completed" : "updated", entityType: "form", entityId: response.id, patientId: response.patientId, title: complete ? "Formulario completado" : "Formulario guardado", detail: response.templateName }).catch(console.error); $("#patientFormDialog").close(); toast(complete ? T("Formulario completado.") : T("Respuestas guardadas; faltan campos obligatorios."));
 }
 
 function openCommunicationDialog(patientId) {
@@ -2110,19 +2115,19 @@ async function saveCommunication() {
   const data = { id: uid(), patientId, channel: $("#communicationChannel").value, direction: $("#communicationDirection").value, subject: $("#communicationSubject").value.trim(), notes: $("#communicationNotes").value.trim(), followUpAt: $("#communicationFollowUp").value, createdAt: new Date().toISOString(), userId: auth.currentUser.uid, userEmail: auth.currentUser.email || "" };
   await getCollectionRef("communications").doc(data.id).set(data);
   if (data.followUpAt) await saveTask({ id: uid(), title: `Seguimiento: ${data.subject}`, patientId, type: "follow_up", dueDate: data.followUpAt, priority: "normal", description: data.notes, status: "open", createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid, updatedAt: new Date().toISOString() });
-  recordActivity({ action: "logged", entityType: "communication", entityId: data.id, patientId, title: "Comunicación registrada", detail: `${communicationChannelLabels[data.channel]} · ${data.subject}` }).catch(console.error); $("#communicationDialog").close(); toast("Comunicación registrada.");
+  recordActivity({ action: "logged", entityType: "communication", entityId: data.id, patientId, title: "Comunicación registrada", detail: `${communicationChannelLabels[data.channel]} · ${data.subject}` }).catch(console.error); $("#communicationDialog").close(); toast(T("Comunicación registrada."));
 }
 
 function communicationActionHtml(entry, p) {
   const subject = encodeURIComponent(entry.subject || ""); const body = encodeURIComponent(entry.notes || "");
-  if (entry.channel === "email" && p.email) return `<a class="btn light" href="mailto:${escapeHtml(p.email)}?subject=${subject}&body=${body}">Abrir correo</a>`;
+  if (entry.channel === "email" && p.email) return H`<a class="btn light" href="mailto:${escapeHtml(p.email)}?subject=${subject}&body=${body}">Abrir correo</a>`;
   const digits = String(p.phone || "").replace(/\D/g, "");
-  if (entry.channel === "whatsapp" && digits) return `<a class="btn light" href="https://wa.me/${digits.length === 10 ? `1${digits}` : digits}?text=${body}" target="_blank" rel="noopener">Abrir WhatsApp</a>`;
-  if (entry.channel === "sms" && digits) return `<a class="btn light" href="sms:${digits}?body=${body}">Abrir SMS</a>`;
+  if (entry.channel === "whatsapp" && digits) return H`<a class="btn light" href="https://wa.me/${digits.length === 10 ? `1${digits}` : digits}?text=${body}" target="_blank" rel="noopener">Abrir WhatsApp</a>`;
+  if (entry.channel === "sms" && digits) return H`<a class="btn light" href="sms:${digits}?body=${body}">Abrir SMS</a>`;
   return "";
 }
 
-const leadStages = { new: "Nuevos", contacted: "Contactados", scheduled: "Cita programada", won: "Convertidos", lost: "Perdidos" };
+const leadStages = ClinicI18n.labels({ new: "Nuevos", contacted: "Contactados", scheduled: "Cita programada", won: "Convertidos", lost: "Perdidos" });
 
 function crmOwners() {
   const owner = { id: activeClinicId, name: "Propietario" };
@@ -2134,21 +2139,21 @@ function renderCrm() {
   const query = ($("#leadSearch")?.value || "").toLowerCase().trim(); const source = $("#leadSourceFilter")?.value || ""; const owner = $("#leadOwnerFilter")?.value || "";
   const rows = state.leads.filter((lead) => (!query || `${lead.name} ${lead.phone} ${lead.email} ${lead.interest} ${lead.notes}`.toLowerCase().includes(query)) && (!source || lead.source === source) && (!owner || lead.ownerId === owner));
   const won = state.leads.filter((lead) => lead.stage === "won"); const open = state.leads.filter((lead) => !["won", "lost"].includes(lead.stage)); const pipelineValue = open.reduce((sum, lead) => sum + Number(lead.estimatedValue || 0), 0); const conversion = state.leads.length ? (won.length / state.leads.length) * 100 : 0;
-  $("#crmMetrics").innerHTML = `<div><small>Prospectos abiertos</small><strong>${open.length}</strong></div><div><small>Valor del embudo</small><strong>${money(pipelineValue)}</strong></div><div><small>Convertidos</small><strong>${won.length}</strong></div><div><small>Conversión</small><strong>${conversion.toFixed(1)}%</strong></div>`;
-  pipeline.innerHTML = Object.entries(leadStages).map(([stage, label]) => { const stageRows = rows.filter((lead) => lead.stage === stage).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)); return `<section class="pipeline-column stage-${stage}"><header><strong>${label}</strong><span>${stageRows.length}</span></header><div>${stageRows.map(leadCardHtml).join("") || `<p class="pipeline-empty">Sin prospectos</p>`}</div></section>`; }).join("");
-  const ownerSelect = $("#leadOwnerFilter"); if (ownerSelect) { const selected = ownerSelect.value; ownerSelect.innerHTML = `<option value="">Todos los responsables</option>${crmOwners().map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`; ownerSelect.value = selected; }
+  $("#crmMetrics").innerHTML = H`<div><small>Prospectos abiertos</small><strong>${open.length}</strong></div><div><small>Valor del embudo</small><strong>${money(pipelineValue)}</strong></div><div><small>Convertidos</small><strong>${won.length}</strong></div><div><small>Conversión</small><strong>${conversion.toFixed(1)}%</strong></div>`;
+  pipeline.innerHTML = Object.entries(leadStages).map(([stage, label]) => { const stageRows = rows.filter((lead) => lead.stage === stage).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)); return H`<section class="pipeline-column stage-${stage}"><header><strong>${label}</strong><span>${stageRows.length}</span></header><div>${stageRows.map(leadCardHtml).join("") || H`<p class="pipeline-empty">Sin prospectos</p>`}</div></section>`; }).join("");
+  const ownerSelect = $("#leadOwnerFilter"); if (ownerSelect) { const selected = ownerSelect.value; ownerSelect.innerHTML = H`<option value="">Todos los responsables</option>${crmOwners().map((item) => H`<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`; ownerSelect.value = selected; }
   renderCampaigns();
 }
 
 function leadCardHtml(lead) {
   const campaign = state.campaigns.find((item) => item.id === lead.campaignId); const followUpOverdue = lead.nextFollowUp && new Date(lead.nextFollowUp) < new Date() && !["won", "lost"].includes(lead.stage);
-  return `<article class="lead-card ${followUpOverdue ? "followup-overdue" : ""}"><div class="lead-card-head"><button onclick="openLeadDialog('${lead.id}')">${escapeHtml(lead.name)}</button><strong>${money(lead.estimatedValue)}</strong></div><p>${escapeHtml(lead.interest || "Interés no indicado")}</p><small>${escapeHtml(lead.source || "Sin fuente")}${campaign ? ` · ${escapeHtml(campaign.name)}` : ""}</small>${lead.nextFollowUp ? `<small class="lead-followup">${followUpOverdue ? "⚠ " : ""}Próximo: ${fmtDate(lead.nextFollowUp)}</small>` : ""}<div class="lead-actions"><select aria-label="Etapa" onchange="moveLead('${lead.id}',this.value)">${Object.entries(leadStages).map(([value, label]) => `<option value="${value}" ${lead.stage === value ? "selected" : ""}>${label}</option>`).join("")}</select>${lead.stage !== "won" ? `<button class="btn light" onclick="convertLead('${lead.id}')">Convertir</button>` : lead.patientId ? `<button class="btn light" onclick="openPatientRecord('${lead.patientId}')">Paciente</button>` : ""}</div></article>`;
+  return H`<article class="lead-card ${followUpOverdue ? "followup-overdue" : ""}"><div class="lead-card-head"><button onclick="openLeadDialog('${lead.id}')">${escapeHtml(lead.name)}</button><strong>${money(lead.estimatedValue)}</strong></div><p>${escapeHtml(lead.interest || T("Interés no indicado"))}</p><small>${escapeHtml(lead.source || T("Sin fuente"))}${campaign ? ` · ${escapeHtml(campaign.name)}` : ""}</small>${lead.nextFollowUp ? H`<small class="lead-followup">${followUpOverdue ? "⚠ " : ""}Próximo: ${fmtDate(lead.nextFollowUp)}</small>` : ""}<div class="lead-actions"><select aria-label="Etapa" onchange="moveLead('${lead.id}',this.value)">${Object.entries(leadStages).map(([value, label]) => H`<option value="${value}" ${lead.stage === value ? "selected" : ""}>${label}</option>`).join("")}</select>${lead.stage !== "won" ? H`<button class="btn light" onclick="convertLead('${lead.id}')">Convertir</button>` : lead.patientId ? H`<button class="btn light" onclick="openPatientRecord('${lead.patientId}')">Paciente</button>` : ""}</div></article>`;
 }
 
 function openLeadDialog(id = "") {
-  const lead = state.leads.find((item) => item.id === id); $("#leadDialogTitle").textContent = lead ? "Editar prospecto" : "Nuevo prospecto"; $("#leadId").value = lead?.id || ""; $("#leadName").value = lead?.name || ""; $("#leadPhone").value = lead?.phone || ""; $("#leadEmail").value = lead?.email || ""; $("#leadSource").value = lead?.source || "Google"; $("#leadStage").value = lead?.stage || "new"; $("#leadInterest").value = lead?.interest || ""; $("#leadValue").value = lead?.estimatedValue || ""; $("#leadNextFollowUp").value = lead?.nextFollowUp || ""; $("#leadNotes").value = lead?.notes || "";
-  $("#leadOwner").innerHTML = crmOwners().map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""); $("#leadOwner").value = lead?.ownerId || auth.currentUser.uid;
-  $("#leadCampaign").innerHTML = `<option value="">Sin campaña</option>${state.campaigns.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`; $("#leadCampaign").value = lead?.campaignId || ""; $("#leadDialog").showModal();
+  const lead = state.leads.find((item) => item.id === id); $("#leadDialogTitle").textContent = lead ? T("Editar prospecto") : T("Nuevo prospecto"); $("#leadId").value = lead?.id || ""; $("#leadName").value = lead?.name || ""; $("#leadPhone").value = lead?.phone || ""; $("#leadEmail").value = lead?.email || ""; $("#leadSource").value = lead?.source || "Google"; $("#leadStage").value = lead?.stage || "new"; $("#leadInterest").value = lead?.interest || ""; $("#leadValue").value = lead?.estimatedValue || ""; $("#leadNextFollowUp").value = lead?.nextFollowUp || ""; $("#leadNotes").value = lead?.notes || "";
+  $("#leadOwner").innerHTML = crmOwners().map((item) => H`<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""); $("#leadOwner").value = lead?.ownerId || auth.currentUser.uid;
+  $("#leadCampaign").innerHTML = H`<option value="">Sin campaña</option>${state.campaigns.map((item) => H`<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`; $("#leadCampaign").value = lead?.campaignId || ""; $("#leadDialog").showModal();
 }
 
 async function saveLead() {
@@ -2156,33 +2161,33 @@ async function saveLead() {
   const data = { id, name: $("#leadName").value.trim(), phone: $("#leadPhone").value.trim(), email: $("#leadEmail").value.trim().toLowerCase(), source: $("#leadSource").value, stage: $("#leadStage").value, ownerId: $("#leadOwner").value, campaignId: $("#leadCampaign").value, interest: $("#leadInterest").value.trim(), estimatedValue: Number($("#leadValue").value || 0), nextFollowUp: $("#leadNextFollowUp").value, notes: $("#leadNotes").value.trim(), createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: existing?.createdBy || auth.currentUser.uid, patientId: existing?.patientId || "" };
   await getCollectionRef("leads").doc(id).set(data, { merge: true });
   if (data.nextFollowUp && data.nextFollowUp !== existing?.nextFollowUp) await saveTask({ id: uid(), title: `Contactar prospecto: ${data.name}`, patientId: "", type: "follow_up", dueDate: data.nextFollowUp, priority: "normal", description: `${data.interest}${data.phone ? ` · ${data.phone}` : ""}`, status: "open", createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid, updatedAt: new Date().toISOString(), leadId: id });
-  recordActivity({ action: existing ? "updated" : "created", entityType: "lead", entityId: id, title: existing ? "Prospecto actualizado" : "Prospecto creado", detail: `${data.name} · ${leadStages[data.stage]}` }).catch(console.error); $("#leadDialog").close(); toast("Prospecto guardado.");
+  recordActivity({ action: existing ? "updated" : "created", entityType: "lead", entityId: id, title: existing ? "Prospecto actualizado" : "Prospecto creado", detail: `${data.name} · ${leadStages[data.stage]}` }).catch(console.error); $("#leadDialog").close(); toast(T("Prospecto guardado."));
 }
 
 async function moveLead(id, stage) {
   const lead = state.leads.find((item) => item.id === id); if (!lead) return;
-  await getCollectionRef("leads").doc(id).set({ stage, updatedAt: new Date().toISOString(), stageChangedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "stage_changed", entityType: "lead", entityId: id, title: "Etapa de prospecto actualizada", detail: `${lead.name} · ${leadStages[stage]}` }).catch(console.error); toast("Etapa actualizada.");
+  await getCollectionRef("leads").doc(id).set({ stage, updatedAt: new Date().toISOString(), stageChangedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "stage_changed", entityType: "lead", entityId: id, title: "Etapa de prospecto actualizada", detail: `${lead.name} · ${leadStages[stage]}` }).catch(console.error); toast(T("Etapa actualizada."));
 }
 
 async function convertLead(id) {
-  const lead = state.leads.find((item) => item.id === id); if (!lead || !confirm(`¿Convertir a ${lead.name} en paciente?`)) return;
+  const lead = state.leads.find((item) => item.id === id); if (!lead || !confirm(S`¿Convertir a ${lead.name} en paciente?`)) return;
   const patientId = lead.patientId || uid();
   if (!lead.patientId) await savePatient({ id: patientId, name: lead.name, phone: lead.phone || "", email: lead.email || "", age: "", birthDate: "", language: "Español", payerType: "self_pay", insuranceCompany: "", insuranceMemberId: "", insuranceGroup: "", emailNotificationsEnabled: false, smsNotificationsEnabled: false, birthdayEmailEnabled: false, document: "", notes: lead.notes || "", source: lead.source || "", lifecycle: "new", patientAlertMessage: "", patientAlertDate: "", patientAlertActive: false, createdAt: new Date().toISOString(), leadId: id });
-  await getCollectionRef("leads").doc(id).set({ stage: "won", patientId, convertedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "converted", entityType: "lead", entityId: id, patientId, title: "Prospecto convertido en paciente", detail: lead.name }).catch(console.error); toast("Prospecto convertido en paciente.");
+  await getCollectionRef("leads").doc(id).set({ stage: "won", patientId, convertedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, { merge: true }); recordActivity({ action: "converted", entityType: "lead", entityId: id, patientId, title: "Prospecto convertido en paciente", detail: lead.name }).catch(console.error); toast(T("Prospecto convertido en paciente."));
 }
 
 function renderCampaigns() {
   const box = $("#campaignList"); if (!box) return;
-  box.innerHTML = state.campaigns.length ? state.campaigns.map((campaign) => { const leads = state.leads.filter((lead) => lead.campaignId === campaign.id); const won = leads.filter((lead) => lead.stage === "won"); const cost = Number(campaign.budget || 0); return `<article class="campaign-card"><div><span class="badge ${campaign.status === "active" ? "green" : "blue"}">${campaign.status === "active" ? "Activa" : campaign.status === "completed" ? "Finalizada" : campaign.status === "paused" ? "Pausada" : "Planificada"}</span><h4>${escapeHtml(campaign.name)}</h4><small>${escapeHtml(campaign.channel)} · ${campaign.startDate || "Sin inicio"}</small></div><div><small>Prospectos</small><strong>${leads.length}</strong></div><div><small>Convertidos</small><strong>${won.length}</strong></div><div><small>Costo / conversión</small><strong>${won.length ? money(cost / won.length) : "—"}</strong></div><button class="btn light" onclick="openCampaignDialog('${campaign.id}')">Editar</button></article>`; }).join("") : `<div class="empty">No hay campañas registradas.</div>`;
+  box.innerHTML = state.campaigns.length ? state.campaigns.map((campaign) => { const leads = state.leads.filter((lead) => lead.campaignId === campaign.id); const won = leads.filter((lead) => lead.stage === "won"); const cost = Number(campaign.budget || 0); return H`<article class="campaign-card"><div><span class="badge ${campaign.status === "active" ? "green" : "blue"}">${campaign.status === "active" ? T("Activa") : campaign.status === "completed" ? T("Finalizada") : campaign.status === "paused" ? T("Pausada") : T("Planificada")}</span><h4>${escapeHtml(campaign.name)}</h4><small>${escapeHtml(campaign.channel)} · ${campaign.startDate || T("Sin inicio")}</small></div><div><small>Prospectos</small><strong>${leads.length}</strong></div><div><small>Convertidos</small><strong>${won.length}</strong></div><div><small>Costo / conversión</small><strong>${won.length ? money(cost / won.length) : "—"}</strong></div><button class="btn light" onclick="openCampaignDialog('${campaign.id}')">Editar</button></article>`; }).join("") : H`<div class="empty">No hay campañas registradas.</div>`;
 }
 
 function openCampaignDialog(id = "") {
-  const campaign = state.campaigns.find((item) => item.id === id); $("#campaignDialogTitle").textContent = campaign ? "Editar campaña" : "Nueva campaña"; $("#campaignId").value = campaign?.id || ""; $("#campaignName").value = campaign?.name || ""; $("#campaignChannel").value = campaign?.channel || "Google"; $("#campaignStatus").value = campaign?.status || "planned"; $("#campaignStart").value = campaign?.startDate || ""; $("#campaignEnd").value = campaign?.endDate || ""; $("#campaignBudget").value = campaign?.budget || ""; $("#campaignNotes").value = campaign?.notes || ""; $("#campaignDialog").showModal();
+  const campaign = state.campaigns.find((item) => item.id === id); $("#campaignDialogTitle").textContent = campaign ? T("Editar campaña") : T("Nueva campaña"); $("#campaignId").value = campaign?.id || ""; $("#campaignName").value = campaign?.name || ""; $("#campaignChannel").value = campaign?.channel || "Google"; $("#campaignStatus").value = campaign?.status || "planned"; $("#campaignStart").value = campaign?.startDate || ""; $("#campaignEnd").value = campaign?.endDate || ""; $("#campaignBudget").value = campaign?.budget || ""; $("#campaignNotes").value = campaign?.notes || ""; $("#campaignDialog").showModal();
 }
 
 async function saveCampaign() {
   const id = $("#campaignId").value || uid(); const existing = state.campaigns.find((item) => item.id === id); const data = { id, name: $("#campaignName").value.trim(), channel: $("#campaignChannel").value, status: $("#campaignStatus").value, startDate: $("#campaignStart").value, endDate: $("#campaignEnd").value, budget: Number($("#campaignBudget").value || 0), notes: $("#campaignNotes").value.trim(), createdAt: existing?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: existing?.createdBy || auth.currentUser.uid };
-  await getCollectionRef("campaigns").doc(id).set(data, { merge: true }); recordActivity({ action: existing ? "updated" : "created", entityType: "campaign", entityId: id, title: existing ? "Campaña actualizada" : "Campaña creada", detail: data.name }).catch(console.error); $("#campaignDialog").close(); toast("Campaña guardada.");
+  await getCollectionRef("campaigns").doc(id).set(data, { merge: true }); recordActivity({ action: existing ? "updated" : "created", entityType: "campaign", entityId: id, title: existing ? "Campaña actualizada" : "Campaña creada", detail: data.name }).catch(console.error); $("#campaignDialog").close(); toast(T("Campaña guardada."));
 }
 
 function accountingReceipts(dateFrom = "", dateTo = "", method = "") {
@@ -2205,32 +2210,32 @@ function renderAdvancedAccounting() {
   const summary = $("#profitabilitySummary"); if (!summary) return;
   const dateFrom = $("#billingDateFrom")?.value || ""; const dateTo = $("#billingDateTo")?.value || ""; const inRange = (value) => { const date = String(value || "").slice(0, 10); return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo); };
   const revenue = accountingReceipts(dateFrom, dateTo); const expenses = state.expenses.filter((item) => inRange(item.date)).reduce((sum, item) => sum + Number(item.amount || 0), 0); const profit = revenue - expenses; const margin = revenue ? (profit / revenue) * 100 : 0;
-  summary.innerHTML = `<div><small>Ingresos cobrados</small><strong>${money(revenue)}</strong></div><div><small>Gastos</small><strong>${money(expenses)}</strong></div><div class="${profit < 0 ? "negative" : "positive"}"><small>Utilidad neta</small><strong>${money(profit)}</strong></div><div><small>Margen</small><strong>${margin.toFixed(1)}%</strong></div>`;
-  $("#expenseList").innerHTML = state.expenses.filter((item) => inRange(item.date)).sort((a, b) => new Date(b.date) - new Date(a.date)).map((item) => `<div><span><strong>${escapeHtml(item.vendor)}</strong><small>${fmtDate(item.date)} · ${escapeHtml(item.category)} · ${escapeHtml(item.method)}</small></span><strong>${money(item.amount)}</strong><button class="icon-btn" onclick="deleteExpense('${item.id}')">⌫</button></div>`).join("") || `<div class="empty">No hay gastos en este período.</div>`;
-  $("#cashClosingList").innerHTML = state.cashClosings.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 20).map((item) => `<div><span><strong>${new Date(`${item.date}T12:00:00`).toLocaleDateString("es-US")}</strong><small>Esperado ${money(item.expected)} · Contado ${money(item.counted)}</small></span><strong class="${Number(item.difference) ? "accounting-difference" : ""}">${money(item.difference)}</strong></div>`).join("") || `<div class="empty">No hay cierres registrados.</div>`;
+  summary.innerHTML = H`<div><small>Ingresos cobrados</small><strong>${money(revenue)}</strong></div><div><small>Gastos</small><strong>${money(expenses)}</strong></div><div class="${profit < 0 ? "negative" : "positive"}"><small>Utilidad neta</small><strong>${money(profit)}</strong></div><div><small>Margen</small><strong>${margin.toFixed(1)}%</strong></div>`;
+  $("#expenseList").innerHTML = state.expenses.filter((item) => inRange(item.date)).sort((a, b) => new Date(b.date) - new Date(a.date)).map((item) => H`<div><span><strong>${escapeHtml(item.vendor)}</strong><small>${fmtDate(item.date)} · ${escapeHtml(item.category)} · ${escapeHtml(item.method)}</small></span><strong>${money(item.amount)}</strong><button class="icon-btn" onclick="deleteExpense('${item.id}')">⌫</button></div>`).join("") || H`<div class="empty">No hay gastos en este período.</div>`;
+  $("#cashClosingList").innerHTML = state.cashClosings.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 20).map((item) => H`<div><span><strong>${new Date(`${item.date}T12:00:00`).toLocaleDateString(ClinicI18n.locale)}</strong><small>Esperado ${money(item.expected)} · Contado ${money(item.counted)}</small></span><strong class="${Number(item.difference) ? "accounting-difference" : ""}">${money(item.difference)}</strong></div>`).join("") || H`<div class="empty">No hay cierres registrados.</div>`;
 }
 
 function openExpenseDialog() { $("#expenseId").value = ""; $("#expenseDate").value = localDateTimeValue(new Date()); $("#expenseCategory").value = "Insumos médicos"; $("#expenseVendor").value = ""; $("#expenseAmount").value = ""; $("#expenseMethod").value = "card"; $("#expenseReference").value = ""; $("#expenseNotes").value = ""; $("#expenseDialog").showModal(); }
-async function saveExpense() { const id = $("#expenseId").value || uid(); const data = { id, date: $("#expenseDate").value, category: $("#expenseCategory").value, vendor: $("#expenseVendor").value.trim(), amount: Number($("#expenseAmount").value || 0), method: $("#expenseMethod").value, reference: $("#expenseReference").value.trim(), notes: $("#expenseNotes").value.trim(), createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid }; await getCollectionRef("expenses").doc(id).set(data, { merge: true }); recordActivity({ action: "created", entityType: "expense", entityId: id, title: "Gasto registrado", detail: `${data.vendor} · ${money(data.amount)}` }).catch(console.error); $("#expenseDialog").close(); toast("Gasto registrado."); }
-async function deleteExpense(id) { const item = state.expenses.find((entry) => entry.id === id); if (!item || !confirm(`¿Eliminar el gasto de ${item.vendor}?`)) return; await getCollectionRef("expenses").doc(id).delete(); recordActivity({ action: "deleted", entityType: "expense", entityId: id, title: "Gasto eliminado", detail: `${item.vendor} · ${money(item.amount)}` }).catch(console.error); toast("Gasto eliminado."); }
+async function saveExpense() { const id = $("#expenseId").value || uid(); const data = { id, date: $("#expenseDate").value, category: $("#expenseCategory").value, vendor: $("#expenseVendor").value.trim(), amount: Number($("#expenseAmount").value || 0), method: $("#expenseMethod").value, reference: $("#expenseReference").value.trim(), notes: $("#expenseNotes").value.trim(), createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid }; await getCollectionRef("expenses").doc(id).set(data, { merge: true }); recordActivity({ action: "created", entityType: "expense", entityId: id, title: "Gasto registrado", detail: `${data.vendor} · ${money(data.amount)}` }).catch(console.error); $("#expenseDialog").close(); toast(T("Gasto registrado.")); }
+async function deleteExpense(id) { const item = state.expenses.find((entry) => entry.id === id); if (!item || !confirm(S`¿Eliminar el gasto de ${item.vendor}?`)) return; await getCollectionRef("expenses").doc(id).delete(); recordActivity({ action: "deleted", entityType: "expense", entityId: id, title: "Gasto eliminado", detail: `${item.vendor} · ${money(item.amount)}` }).catch(console.error); toast(T("Gasto eliminado.")); }
 
-function openAdjustmentDialog(visitId) { const visit = state.visits.find((item) => item.id === visitId); if (!visit) return; const p = patient(visit.patientId); $("#adjustmentVisitId").value = visitId; $("#adjustmentTitle").textContent = invoiceNumber(visit); $("#adjustmentContext").innerHTML = `<div><small>Paciente</small><strong>${escapeHtml(p?.name || "Paciente")}</strong></div><div><small>Balance</small><strong>${money(balance(visit))}</strong></div><div><small>Pagado neto</small><strong>${money(totalPaid(visit))}</strong></div>`; $("#adjustmentType").value = "discount"; $("#adjustmentAmount").value = ""; $("#adjustmentReason").value = ""; $("#adjustmentNotes").value = ""; $("#adjustmentDialog").showModal(); }
-async function saveAdjustment() { const visit = state.visits.find((item) => item.id === $("#adjustmentVisitId").value); if (!visit) return; const type = $("#adjustmentType").value; const amount = Number($("#adjustmentAmount").value || 0); if (amount <= 0) return toast("Indica un monto válido."); if (["discount", "writeoff"].includes(type) && amount > balance(visit)) return toast("El ajuste no puede superar el balance."); if (type === "refund" && amount > totalPaid(visit)) return toast("El reembolso no puede superar lo pagado."); const id = uid(); const data = { id, visitId: visit.id, patientId: visit.patientId, type, amount, reason: $("#adjustmentReason").value.trim(), notes: $("#adjustmentNotes").value.trim(), date: new Date().toISOString(), createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid }; await getCollectionRef("adjustments").doc(id).set(data); recordActivity({ action: "created", entityType: "adjustment", entityId: id, patientId: visit.patientId, visitId: visit.id, title: type === "refund" ? "Reembolso registrado" : type === "writeoff" ? "Saldo anulado" : "Descuento aplicado", detail: `${money(amount)} · ${data.reason}` }).catch(console.error); $("#adjustmentDialog").close(); toast("Ajuste aplicado."); }
+function openAdjustmentDialog(visitId) { const visit = state.visits.find((item) => item.id === visitId); if (!visit) return; const p = patient(visit.patientId); $("#adjustmentVisitId").value = visitId; $("#adjustmentTitle").textContent = invoiceNumber(visit); $("#adjustmentContext").innerHTML = H`<div><small>Paciente</small><strong>${escapeHtml(p?.name || T("Paciente"))}</strong></div><div><small>Balance</small><strong>${money(balance(visit))}</strong></div><div><small>Pagado neto</small><strong>${money(totalPaid(visit))}</strong></div>`; $("#adjustmentType").value = "discount"; $("#adjustmentAmount").value = ""; $("#adjustmentReason").value = ""; $("#adjustmentNotes").value = ""; $("#adjustmentDialog").showModal(); }
+async function saveAdjustment() { const visit = state.visits.find((item) => item.id === $("#adjustmentVisitId").value); if (!visit) return; const type = $("#adjustmentType").value; const amount = Number($("#adjustmentAmount").value || 0); if (amount <= 0) return toast(T("Indica un monto válido.")); if (["discount", "writeoff"].includes(type) && amount > balance(visit)) return toast(T("El ajuste no puede superar el balance.")); if (type === "refund" && amount > totalPaid(visit)) return toast(T("El reembolso no puede superar lo pagado.")); const id = uid(); const data = { id, visitId: visit.id, patientId: visit.patientId, type, amount, reason: $("#adjustmentReason").value.trim(), notes: $("#adjustmentNotes").value.trim(), date: new Date().toISOString(), createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid }; await getCollectionRef("adjustments").doc(id).set(data); recordActivity({ action: "created", entityType: "adjustment", entityId: id, patientId: visit.patientId, visitId: visit.id, title: type === "refund" ? "Reembolso registrado" : type === "writeoff" ? "Saldo anulado" : "Descuento aplicado", detail: `${money(amount)} · ${data.reason}` }).catch(console.error); $("#adjustmentDialog").close(); toast(T("Ajuste aplicado.")); }
 
 function expectedCashForDate(date) { const cashReceipts = accountingReceipts(date, date, "cash"); const cashExpenses = state.expenses.filter((item) => String(item.date).slice(0, 10) === date && item.method === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0); return cashReceipts - cashExpenses; }
 function updateCashClosingDifference() { const expected = expectedCashForDate($("#cashClosingDate").value); const counted = Number($("#cashCounted").value || 0); $("#cashExpected").value = expected.toFixed(2); $("#cashDifference").value = (counted - expected).toFixed(2); }
 function openCashClosingDialog() { $("#cashClosingDate").value = localDateValue(); $("#cashCounted").value = ""; $("#cashClosingNotes").value = ""; updateCashClosingDifference(); $("#cashClosingDialog").showModal(); }
-async function saveCashClosing() { const date = $("#cashClosingDate").value; const id = date; const data = { id, date, expected: Number($("#cashExpected").value || 0), counted: Number($("#cashCounted").value || 0), difference: Number($("#cashDifference").value || 0), notes: $("#cashClosingNotes").value.trim(), closedAt: new Date().toISOString(), closedBy: auth.currentUser.uid }; await getCollectionRef("cashClosings").doc(id).set(data, { merge: true }); recordActivity({ action: "closed", entityType: "cash", entityId: id, title: "Cierre de caja registrado", detail: `${date} · Diferencia ${money(data.difference)}` }).catch(console.error); $("#cashClosingDialog").close(); toast("Cierre de caja guardado."); }
+async function saveCashClosing() { const date = $("#cashClosingDate").value; const id = date; const data = { id, date, expected: Number($("#cashExpected").value || 0), counted: Number($("#cashCounted").value || 0), difference: Number($("#cashDifference").value || 0), notes: $("#cashClosingNotes").value.trim(), closedAt: new Date().toISOString(), closedBy: auth.currentUser.uid }; await getCollectionRef("cashClosings").doc(id).set(data, { merge: true }); recordActivity({ action: "closed", entityType: "cash", entityId: id, title: "Cierre de caja registrado", detail: `${date} · Diferencia ${money(data.difference)}` }).catch(console.error); $("#cashClosingDialog").close(); toast(T("Cierre de caja guardado.")); }
 
 function renderSettings() {
   const clinicName = state.settings.clinicName || "Clinic Control";
   $("#clinicBrandName").textContent = clinicName;
   $("#clinicBrandLogo").classList.toggle("has-clinic-logo", Boolean(state.settings.clinicLogo));
-  $("#clinicBrandLogo").innerHTML = state.settings.clinicLogo ? `<img src="${state.settings.clinicLogo}" alt="" />` : `<span></span>`;
+  $("#clinicBrandLogo").innerHTML = state.settings.clinicLogo ? H`<img src="${state.settings.clinicLogo}" alt="" />` : H`<span></span>`;
   $("#heroClinicTitle").textContent = state.settings.clinicName
-    ? `Control diario de ${state.settings.clinicName}`
-    : "Control diario de la clínica";
-  document.title = `${clinicName} · Clinic Control`;
+    ? S`Control diario de ${state.settings.clinicName}`
+    : T("Control diario de la clínica");
+  document.title = S`${clinicName} · Clinic Control`;
   $("#clinicName").value = state.settings.clinicName || "";
   $("#clinicAddress").value = state.settings.clinicAddress || "";
   $("#clinicPhone").value = state.settings.clinicPhone || "";
@@ -2250,8 +2255,8 @@ function renderSettings() {
   const scheduleDays = state.settings.scheduleDays || [1, 2, 3, 4, 5];
   $$('[data-schedule-day]').forEach((input) => { input.checked = scheduleDays.includes(Number(input.dataset.scheduleDay)); });
   $("#clinicLogoPreview").innerHTML = state.settings.clinicLogo
-    ? `<img src="${state.settings.clinicLogo}" alt="Logo de la clínica" />`
-    : `<span>Sin logo</span>`;
+    ? H`<img src="${state.settings.clinicLogo}" alt="Logo de la clínica" />`
+    : H`<span>Sin logo</span>`;
   renderInvoiceStylePreview();
   renderDoctorSettings();
   renderAppointmentDoctorOptions();
@@ -2269,21 +2274,21 @@ function renderDoctorSettings() {
     .sort((a, b) => a.localeCompare(b, "es"));
   state.settings.doctors = doctors;
   container.innerHTML = doctors.length
-    ? doctors.map((name) => `<div class="doctor-setting-row"><span>${escapeHtml(name)}</span><button class="icon-btn" type="button" data-remove-doctor="${escapeHtml(name)}" title="Quitar médico">⌫</button></div>`).join("")
-    : `<div class="empty">Todavía no hay médicos configurados.</div>`;
+    ? doctors.map((name) => H`<div class="doctor-setting-row"><span>${escapeHtml(name)}</span><button class="icon-btn" type="button" data-remove-doctor="${escapeHtml(name)}" title="Quitar médico">⌫</button></div>`).join("")
+    : H`<div class="empty">Todavía no hay médicos configurados.</div>`;
 }
 
 function addConfiguredDoctor() {
   const input = $("#doctorNameInput");
   const name = input.value.trim();
-  if (!name) return toast("Escribe el nombre del médico.");
+  if (!name) return toast(T("Escribe el nombre del médico."));
   const doctors = state.settings.doctors || [];
-  if (doctors.some((item) => item.toLowerCase() === name.toLowerCase())) return toast("Este médico ya está en la lista.");
+  if (doctors.some((item) => item.toLowerCase() === name.toLowerCase())) return toast(T("Este médico ya está en la lista."));
   state.settings.doctors = [...doctors, name];
   input.value = "";
   renderDoctorSettings();
   renderAppointmentDoctorOptions();
-  toast("Médico agregado. Guarda los cambios para confirmar.");
+  toast(T("Médico agregado. Guarda los cambios para confirmar."));
 }
 
 function removeConfiguredDoctor(name) {
@@ -2296,21 +2301,21 @@ function renderTeamMembers() {
   const container = $("#teamMembersList");
   if (!container) return;
   if (currentAccess.role !== "admin") {
-    container.innerHTML = `<div class="empty">Solo los administradores pueden gestionar usuarios.</div>`;
+    container.innerHTML = H`<div class="empty">Solo los administradores pueden gestionar usuarios.</div>`;
     return;
   }
   const owner = { id: activeClinicId, name: "Propietario de la clínica", email: state.settings.clinicEmail || auth?.currentUser?.email || "", role: "admin", status: "active", owner: true };
   const members = [owner, ...state.teamMembers.filter((member) => member.id !== activeClinicId)];
-  container.innerHTML = members.map((member) => `<div class="team-member-row"><div class="team-member-avatar">${escapeHtml((member.name || member.email || "U").slice(0, 1).toUpperCase())}</div><span><strong>${escapeHtml(member.name || "Usuario")}</strong><small>${escapeHtml(member.email || "")}${member.owner ? " · Propietario" : ""}</small></span><select aria-label="Rol" onchange="updateTeamMember('${member.id}', {role:this.value})" ${member.owner ? "disabled" : ""}>${Object.entries(roleLabels).map(([value, label]) => `<option value="${value}" ${member.role === value ? "selected" : ""}>${label}</option>`).join("")}</select>${member.owner ? `<span class="badge green">Activo</span>` : `<button class="btn light" type="button" onclick="updateTeamMember('${member.id}', {status:'${member.status === "disabled" ? "active" : "disabled"}'})">${member.status === "disabled" ? "Activar" : "Desactivar"}</button>`}</div>`).join("");
+  container.innerHTML = members.map((member) => H`<div class="team-member-row"><div class="team-member-avatar">${escapeHtml((member.name || member.email || "U").slice(0, 1).toUpperCase())}</div><span><strong>${escapeHtml(member.name || "Usuario")}</strong><small>${escapeHtml(member.email || "")}${member.owner ? T(" · Propietario") : ""}</small></span><select aria-label="Rol" onchange="updateTeamMember('${member.id}', {role:this.value})" ${member.owner ? "disabled" : ""}>${Object.entries(roleLabels).map(([value, label]) => H`<option value="${value}" ${member.role === value ? "selected" : ""}>${label}</option>`).join("")}</select>${member.owner ? H`<span class="badge green">Activo</span>` : H`<button class="btn light" type="button" onclick="updateTeamMember('${member.id}', {status:'${member.status === "disabled" ? "active" : "disabled"}'})">${member.status === "disabled" ? T("Activar") : T("Desactivar")}</button>`}</div>`).join("");
 }
 
 async function createTeamMember() {
-  if (currentAccess.role !== "admin") return toast("Solo un administrador puede agregar usuarios.");
+  if (currentAccess.role !== "admin") return toast(T("Solo un administrador puede agregar usuarios."));
   const name = $("#teamMemberName").value.trim();
   const email = $("#teamMemberEmail").value.trim().toLowerCase();
   const password = $("#teamMemberPassword").value;
   const role = $("#teamMemberRole").value;
-  if (!name || !email || password.length < 6) return toast("Completa nombre, correo y una contraseña temporal de 6 caracteres.");
+  if (!name || !email || password.length < 6) return toast(T("Completa nombre, correo y una contraseña temporal de 6 caracteres."));
   let secondaryApp;
   try {
     secondaryApp = firebase.apps.find((app) => app.name === "team-member-creator") || firebase.initializeApp(window.firebaseConfig, "team-member-creator");
@@ -2323,7 +2328,7 @@ async function createTeamMember() {
     await secondaryApp.auth().signOut();
     $("#teamMemberName").value = ""; $("#teamMemberEmail").value = ""; $("#teamMemberPassword").value = "";
     recordActivity({ action: "created", entityType: "system", entityId: credential.user.uid, title: "Usuario agregado", detail: `${name} · ${roleLabels[role]}` }).catch(console.error);
-    toast("Usuario agregado correctamente.");
+    toast(T("Usuario agregado correctamente."));
   } catch (error) {
     console.error(error);
     toast(getAuthErrorMessage(error, "register"));
@@ -2338,15 +2343,15 @@ async function updateTeamMember(memberId, changes) {
     batch.set(firestore.collection("userProfiles").doc(memberId), { ...changes, updatedAt: new Date().toISOString() }, { merge: true });
     await batch.commit();
     recordActivity({ action: "updated", entityType: "system", entityId: memberId, title: "Acceso de usuario actualizado", detail: changes.role ? roleLabels[changes.role] : changes.status === "disabled" ? "Usuario desactivado" : "Usuario activado" }).catch(console.error);
-    toast("Permisos actualizados.");
-  } catch (error) { console.error(error); toast("No se pudieron actualizar los permisos."); }
+    toast(T("Permisos actualizados."));
+  } catch (error) { console.error(error); toast(T("No se pudieron actualizar los permisos.")); }
 }
 
 const activityIcons = { patient: "●", visit: "◆", appointment: "▦", payment: "$", document: "▤", signature: "✍", task: "✓", alert: "📌", form: "☷", communication: "☎", clinical: "✚", lead: "◇", campaign: "◎", expense: "−", adjustment: "±", cash: "$", system: "•" };
 function renderAuditLogPreview() {
   const box = $("#auditLogPreview"); if (!box) return;
   const rows = state.activities.slice(0, 20);
-  box.innerHTML = rows.length ? rows.map((entry) => `<div class="audit-row"><span>${activityIcons[entry.entityType] || "•"}</span><div><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.detail || "")} · ${new Date(entry.createdAt).toLocaleString("es-US")}</small><small>${escapeHtml(entry.userEmail || "Usuario de la clínica")}</small></div></div>`).join("") : `<div class="empty document-empty">Las acciones nuevas aparecerán aquí.</div>`;
+  box.innerHTML = rows.length ? rows.map((entry) => H`<div class="audit-row"><span>${activityIcons[entry.entityType] || "•"}</span><div><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.detail || "")} · ${new Date(entry.createdAt).toLocaleString(ClinicI18n.locale)}</small><small>${escapeHtml(entry.userEmail || T("Usuario de la clínica"))}</small></div></div>`).join("") : H`<div class="empty document-empty">Las acciones nuevas aparecerán aquí.</div>`;
 }
 
 function formatFileSize(bytes) {
@@ -2357,14 +2362,14 @@ function formatFileSize(bytes) {
 function renderClinicDocuments() {
   const box = $("#clinicDocumentsList");
   if (!box) return;
-  box.innerHTML = state.documents.length ? state.documents.map((item) => `
+  box.innerHTML = state.documents.length ? state.documents.map((item) => H`
     <div class="document-row">
       <span class="document-icon">${item.type === "application/pdf" ? "PDF" : "DOC"}</span>
-      <div><strong>${escapeHtml(item.name)}</strong><small>${formatFileSize(item.size)} · ${(item.fields || []).length ? `${item.fields.length} campo(s) digitales · Listo para Room` : item.roomReady ? "Listo para Room · Revisión y firma" : "Disponible para firma"}</small></div>
+      <div><strong>${escapeHtml(item.name)}</strong><small>${formatFileSize(item.size)} · ${(item.fields || []).length ? S`${item.fields.length} campo(s) digitales · Listo para Room` : item.roomReady ? T("Listo para Room · Revisión y firma") : T("Disponible para firma")}</small></div>
       <a class="btn light" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Abrir</a>
-      ${item.type === "application/pdf" ? `<button class="btn light" type="button" onclick="${(item.fields || []).length ? `openDocumentFieldsDialog('${item.id}')` : `analyzeClinicDocument('${item.id}')`}">${(item.fields || []).length ? "Revisar campos" : item.roomReady ? "Reanalizar" : "Convertir automáticamente"}</button>` : ""}
+      ${item.type === "application/pdf" ? H`<button class="btn light" type="button" onclick="${(item.fields || []).length ? S`openDocumentFieldsDialog('${item.id}')` : S`analyzeClinicDocument('${item.id}')`}">${(item.fields || []).length ? T("Revisar campos") : item.roomReady ? T("Reanalizar") : T("Convertir automáticamente")}</button>` : ""}
       <button class="btn light document-delete" type="button" onclick="deleteClinicDocument('${item.id}')">Eliminar</button>
-    </div>`).join("") : `<div class="empty document-empty">Todavía no hay documentos cargados.</div>`;
+    </div>`).join("") : H`<div class="empty document-empty">Todavía no hay documentos cargados.</div>`;
 }
 
 function renderVisitDocuments(selectedDocuments = []) {
@@ -2373,12 +2378,12 @@ function renderVisitDocuments(selectedDocuments = []) {
   const available = state.documents.map((item) => ({ ...item, ...(prior.get(item.id) || {}) }));
   const archivedSigned = (selectedDocuments || []).filter((item) => item.status === "signed" && !state.documents.some((documentItem) => documentItem.id === item.documentId));
   const choices = [...available, ...archivedSigned.map((item) => ({ id: item.documentId, ...item, archived: true }))];
-  box.innerHTML = choices.length ? choices.map((item) => `
+  box.innerHTML = choices.length ? choices.map((item) => H`
     <label class="document-choice">
       <input type="checkbox" value="${item.id}" ${prior.has(item.id) || item.status === "signed" ? "checked" : ""} ${item.status === "signed" ? "disabled" : ""} />
-      <span><strong>${escapeHtml(item.name)}</strong><small>${item.status === "signed" ? `Firmado por ${escapeHtml(item.signedBy)}` : "Quedará pendiente de firma"}${item.archived ? " · Archivado" : ""}</small></span>
-      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ver</a>` : ""}
-    </label>`).join("") : `<div class="empty document-empty">No hay documentos disponibles. Súbelos primero desde Ajustes.</div>`;
+      <span><strong>${escapeHtml(item.name)}</strong><small>${item.status === "signed" ? S`Firmado por ${escapeHtml(item.signedBy)}` : T("Quedará pendiente de firma")}${item.archived ? T(" · Archivado") : ""}</small></span>
+      ${item.url ? H`<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Ver</a>` : ""}
+    </label>`).join("") : H`<div class="empty document-empty">No hay documentos disponibles. Súbelos primero desde Ajustes.</div>`;
 }
 
 function collectVisitDocuments(existing = []) {
@@ -2402,7 +2407,7 @@ function openDocumentFieldsDialog(id) {
 
 function addDocumentFieldRow(field = {}) {
   const row = document.createElement("div"); row.className = "form-question-row"; row.dataset.fieldId = field.id || uid();
-  row.innerHTML = `<input class="question-label" placeholder="Nombre del campo" value="${escapeHtml(field.label || "")}" /><select class="question-type"><option value="text" ${field.type === "text" ? "selected" : ""}>Texto corto</option><option value="textarea" ${field.type === "textarea" ? "selected" : ""}>Texto largo</option><option value="yesno" ${field.type === "yesno" ? "selected" : ""}>Sí / No</option><option value="date" ${field.type === "date" ? "selected" : ""}>Fecha</option><option value="number" ${field.type === "number" ? "selected" : ""}>Número</option></select><label><input class="question-required" type="checkbox" ${field.required ? "checked" : ""} /> Obligatorio</label><button type="button" class="icon-btn" title="Eliminar campo" onclick="this.closest('.form-question-row').remove()">⌫</button>`;
+  row.innerHTML = H`<input class="question-label" placeholder="Nombre del campo" value="${escapeHtml(field.label || "")}" /><select class="question-type"><option value="text" ${field.type === "text" ? "selected" : ""}>Texto corto</option><option value="textarea" ${field.type === "textarea" ? "selected" : ""}>Texto largo</option><option value="yesno" ${field.type === "yesno" ? "selected" : ""}>Sí / No</option><option value="date" ${field.type === "date" ? "selected" : ""}>Fecha</option><option value="number" ${field.type === "number" ? "selected" : ""}>Número</option></select><label><input class="question-required" type="checkbox" ${field.required ? "checked" : ""} /> Obligatorio</label><button type="button" class="icon-btn" title="Eliminar campo" onclick="this.closest('.form-question-row').remove()">⌫</button>`;
   $("#documentFieldsBuilder").append(row);
 }
 
@@ -2410,11 +2415,11 @@ async function saveDocumentFields() {
   const id = $("#documentFieldsId").value; const documentItem = state.documents.find((item) => item.id === id); if (!documentItem) return;
   const preservedHiddenFields = (documentItem.fields || []).filter((field) => field.hidden || field.type === "signature");
   const fields = [...Array.from($$("#documentFieldsBuilder .form-question-row")).map((row) => ({ id: row.dataset.fieldId, label: row.querySelector(".question-label").value.trim(), type: row.querySelector(".question-type").value, required: row.querySelector(".question-required").checked })).filter((field) => field.label), ...preservedHiddenFields];
-  if (!fields.length) return toast("Agrega por lo menos un campo digital.");
+  if (!fields.length) return toast(T("Agrega por lo menos un campo digital."));
   await getCollectionRef("documents").doc(id).set({ fields, roomReady: true, updatedAt: new Date().toISOString() }, { merge: true });
   documentItem.fields = fields; documentItem.roomReady = true;
   recordActivity({ action: "updated", entityType: "document", entityId: id, title: "Documento preparado para Room", detail: `${documentItem.name} · ${fields.length} campo(s)` }).catch(console.error);
-  $("#documentFieldsDialog").close(); renderClinicDocuments(); toast("Versión Room guardada.");
+  $("#documentFieldsDialog").close(); renderClinicDocuments(); toast(T("Versión Room guardada."));
 }
 
 function currentSignatureVisit() {
@@ -2427,11 +2432,11 @@ function currentSignatureDocument() {
 
 function openSignatureDialog(visitId) {
   const visit = state.visits.find((item) => item.id === visitId);
-  if (!visit?.documents?.length) return toast("Esta consulta no tiene documentos asignados.");
+  if (!visit?.documents?.length) return toast(T("Esta consulta no tiene documentos asignados."));
   activeSignatureVisitId = visitId;
   activeSignatureDocumentId = visit.documents.find((item) => item.status !== "signed")?.documentId || visit.documents[0].documentId;
   const p = patient(visit.patientId);
-  $("#signatureDialogTitle").textContent = p?.name || "Firma del paciente";
+  $("#signatureDialogTitle").textContent = p?.name || T("Firma del paciente");
   $("#signatureSignerName").value = p?.name || "";
   $("#signatureConsent").checked = false;
   $("#signatureDialog").showModal();
@@ -2448,16 +2453,16 @@ function renderSignatureDialog() {
   const visit = currentSignatureVisit();
   const documentItem = currentSignatureDocument();
   if (!visit || !documentItem) return;
-  $("#signatureDocumentList").innerHTML = visit.documents.map((item) => `
+  $("#signatureDocumentList").innerHTML = visit.documents.map((item) => H`
     <button type="button" class="signature-document-item ${item.documentId === activeSignatureDocumentId ? "active" : ""}" onclick="selectSignatureDocument('${item.documentId}')">
-      <span>${item.status === "signed" ? "✓" : "○"}</span><div><strong>${escapeHtml(item.name)}</strong><small>${item.status === "signed" ? `Firmado ${fmtDate(item.signedAt)}` : "Pendiente de firma"}</small></div>
+      <span>${item.status === "signed" ? "✓" : "○"}</span><div><strong>${escapeHtml(item.name)}</strong><small>${item.status === "signed" ? S`Firmado ${fmtDate(item.signedAt)}` : T("Pendiente de firma")}</small></div>
     </button>`).join("");
   const completedFields = (documentItem.fields || []).filter((field) => documentItem.answers?.[field.id]);
-  $("#signatureDocumentContext").innerHTML = `<div><small>Documento seleccionado</small><strong>${escapeHtml(documentItem.name)}</strong></div>${documentItem.url ? `<a class="btn light" href="${escapeHtml(documentItem.url)}" target="_blank" rel="noopener">Abrir documento</a>` : ""}${completedFields.length ? `<div class="document-answer-summary">${completedFields.map((field) => `<span><small>${escapeHtml(field.label)}</small><strong>${escapeHtml(documentItem.answers[field.id])}</strong></span>`).join("")}</div>` : ""}`;
+  $("#signatureDocumentContext").innerHTML = H`<div><small>Documento seleccionado</small><strong>${escapeHtml(documentItem.name)}</strong></div>${documentItem.url ? H`<a class="btn light" href="${escapeHtml(documentItem.url)}" target="_blank" rel="noopener">Abrir documento</a>` : ""}${completedFields.length ? H`<div class="document-answer-summary">${completedFields.map((field) => H`<span><small>${escapeHtml(field.label)}</small><strong>${escapeHtml(documentItem.answers[field.id])}</strong></span>`).join("")}</div>` : ""}`;
   const preview = $("#savedSignaturePreview");
   preview.classList.toggle("hidden", documentItem.status !== "signed");
-  preview.innerHTML = documentItem.status === "signed" ? `<small>Firma guardada</small><img src="${escapeHtml(documentItem.signatureUrl)}" alt="Firma de ${escapeHtml(documentItem.signedBy)}" /><strong>${escapeHtml(documentItem.signedBy)}</strong><span>${new Date(documentItem.signedAt).toLocaleString("es-US")}</span>` : "";
-  $("#saveSignatureBtn").textContent = documentItem.status === "signed" ? "Reemplazar firma" : "Guardar firma";
+  preview.innerHTML = documentItem.status === "signed" ? H`<small>Firma guardada</small><img src="${escapeHtml(documentItem.signatureUrl)}" alt="Firma de ${escapeHtml(documentItem.signedBy)}" /><strong>${escapeHtml(documentItem.signedBy)}</strong><span>${new Date(documentItem.signedAt).toLocaleString(ClinicI18n.locale)}</span>` : "";
+  $("#saveSignatureBtn").textContent = documentItem.status === "signed" ? T("Reemplazar firma") : T("Guardar firma");
   requestAnimationFrame(setupSignatureCanvas);
 }
 
@@ -2487,9 +2492,9 @@ async function saveCurrentSignature() {
   const visit = currentSignatureVisit();
   const documentItem = currentSignatureDocument();
   const signedBy = $("#signatureSignerName").value.trim();
-  if (!signedBy) return toast("Escribe el nombre de quien firma.");
-  if (!signatureHasInk) return toast("Dibuja la firma antes de guardarla.");
-  if (!$("#signatureConsent").checked) return toast("Confirma la aceptación de la firma electrónica.");
+  if (!signedBy) return toast(T("Escribe el nombre de quien firma."));
+  if (!signatureHasInk) return toast(T("Dibuja la firma antes de guardarla."));
+  if (!$("#signatureConsent").checked) return toast(T("Confirma la aceptación de la firma electrónica."));
   const button = $("#saveSignatureBtn");
   try {
     button.disabled = true;
@@ -2508,10 +2513,10 @@ async function saveCurrentSignature() {
     visit.documents = documents;
     renderSignatureDialog();
     renderVisits();
-    toast("Firma guardada correctamente");
+    toast(T("Firma guardada correctamente"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo guardar la firma");
+    toast(T("No se pudo guardar la firma"));
   } finally {
     button.disabled = false;
   }
@@ -2524,16 +2529,16 @@ function renderInvoiceStylePreview() {
   const position = $("#invoiceLogoPosition")?.value || "left";
   preview.style.setProperty("--preview-accent", color);
   preview.className = `invoice-preview full logo-${position}`;
-  preview.innerHTML = `
-    <div class="preview-brand">${state.settings.clinicLogo ? `<img src="${state.settings.clinicLogo}" alt="" />` : `<span class="preview-logo-placeholder">LOGO</span>`}<strong>${escapeHtml($("#clinicName")?.value || "Nombre de la clínica")}</strong></div>
+  preview.innerHTML = H`
+    <div class="preview-brand">${state.settings.clinicLogo ? H`<img src="${state.settings.clinicLogo}" alt="" />` : H`<span class="preview-logo-placeholder">LOGO</span>`}<strong>${escapeHtml($("#clinicName")?.value || T("Nombre de la clínica"))}</strong></div>
     <div><b>FACTURA</b><small>${escapeHtml($("#invoicePrefix")?.value || "FAC")}-000001</small></div>
-    <p>${escapeHtml($("#invoiceFooter")?.value || "")}</p>`;
+    <p>${escapeHtml(invoiceFooterCopy($("#invoiceFooter")?.value || ""))}</p>`;
 }
 
 function openAppointmentDialog(item = null) {
-  if (!state.patients.length) { toast("Primero registra un paciente."); openPatientDialog(); return; }
+  if (!state.patients.length) { toast(T("Primero registra un paciente.")); openPatientDialog(); return; }
   renderVisitOptions();
-  $("#appointmentDialogTitle").textContent = item ? "Editar cita" : "Nueva cita";
+  $("#appointmentDialogTitle").textContent = item ? T("Editar cita") : T("Nueva cita");
   $("#appointmentId").value = item?.id || "";
   $("#appointmentPatient").value = item?.patientId || state.patients[0].id;
   const defaultDate = `${$("#appointmentDateFilter")?.value || localDateValue()}T09:00`;
@@ -2576,19 +2581,19 @@ function editAppointment(id) {
 }
 
 async function deleteAppointment(id) {
-  if (!confirm("¿Eliminar esta cita?")) return;
-  try { await deleteAppointmentEntry(id); toast("Cita eliminada"); } catch (error) { console.error(error); toast("No se pudo eliminar la cita"); }
+  if (!confirm(T("¿Eliminar esta cita?"))) return;
+  try { await deleteAppointmentEntry(id); toast(T("Cita eliminada")); } catch (error) { console.error(error); toast(T("No se pudo eliminar la cita")); }
 }
 
 async function cancelAppointment(id) {
   const item = state.appointments.find((appointment) => appointment.id === id);
   if (!item) return;
-  const reason = prompt("Motivo de cancelación (opcional):", item.cancellationReason || "");
+  const reason = prompt(T("Motivo de cancelación (opcional):"), item.cancellationReason || "");
   if (reason === null) return;
   try {
     await saveAppointment({ ...item, status: "cancelled", cancellationReason: reason.trim(), cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    toast("Cita cancelada y conservada en el historial");
-  } catch (error) { console.error(error); toast("No se pudo cancelar la cita"); }
+    toast(T("Cita cancelada y conservada en el historial"));
+  } catch (error) { console.error(error); toast(T("No se pudo cancelar la cita")); }
 }
 
 function findAppointmentConflict(candidate) {
@@ -2612,7 +2617,7 @@ function appointmentAvailabilityError(candidate) {
   const date = new Date(candidate.date); const allowedDays = state.settings.scheduleDays || [1, 2, 3, 4, 5];
   if (!allowedDays.includes(date.getDay())) return "La clínica no tiene disponibilidad configurada para ese día.";
   const startMinutes = date.getHours() * 60 + date.getMinutes(); const [openHour, openMinute] = (state.settings.scheduleOpenTime || "08:00").split(":").map(Number); const [closeHour, closeMinute] = (state.settings.scheduleCloseTime || "18:00").split(":").map(Number); const open = openHour * 60 + openMinute; const close = closeHour * 60 + closeMinute;
-  if (startMinutes < open || startMinutes + Number(candidate.duration || 30) > close) return `La cita debe estar entre ${state.settings.scheduleOpenTime || "08:00"} y ${state.settings.scheduleCloseTime || "18:00"}.`;
+  if (startMinutes < open || startMinutes + Number(candidate.duration || 30) > close) return S`La cita debe estar entre ${state.settings.scheduleOpenTime || "08:00"} y ${state.settings.scheduleCloseTime || "18:00"}.`;
   return "";
 }
 
@@ -2629,16 +2634,16 @@ function localDateTimeValue(date) {
 function renderWaitlist() {
   const box = $("#waitlistList"); if (!box) return;
   const rows = state.waitlist.filter((entry) => entry.status !== "scheduled").sort((a, b) => new Date(a.dateFrom) - new Date(b.dateFrom));
-  box.innerHTML = rows.length ? rows.map((entry) => { const p = patient(entry.patientId); return `<article><div><strong>${escapeHtml(p?.name || "Paciente")}</strong><small>${escapeHtml(entry.notes || "Sin notas")} · Desde ${entry.dateFrom}${entry.dateTo ? ` hasta ${entry.dateTo}` : ""}</small></div><span class="badge blue">${entry.timePreference === "morning" ? "Mañana" : entry.timePreference === "afternoon" ? "Tarde" : "Cualquier hora"}</span><button class="btn primary" onclick="bookWaitlist('${entry.id}')">Programar</button><button class="icon-btn" onclick="removeWaitlist('${entry.id}')">⌫</button></article>`; }).join("") : `<div class="empty">La lista de espera está vacía.</div>`;
+  box.innerHTML = rows.length ? rows.map((entry) => { const p = patient(entry.patientId); return H`<article><div><strong>${escapeHtml(p?.name || T("Paciente"))}</strong><small>${escapeHtml(entry.notes || T("Sin notas"))} · Desde ${entry.dateFrom}${entry.dateTo ? S` hasta ${entry.dateTo}` : ""}</small></div><span class="badge blue">${entry.timePreference === "morning" ? T("Mañana") : entry.timePreference === "afternoon" ? T("Tarde") : T("Cualquier hora")}</span><button class="btn primary" onclick="bookWaitlist('${entry.id}')">Programar</button><button class="icon-btn" onclick="removeWaitlist('${entry.id}')">⌫</button></article>`; }).join("") : H`<div class="empty">La lista de espera está vacía.</div>`;
 }
 
 function openWaitlistDialog() {
-  renderVisitOptions(); $("#waitlistPatient").innerHTML = state.patients.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(""); enablePatientSelectSearch($("#waitlistPatient")); $("#waitlistId").value = ""; $("#waitlistDateFrom").value = localDateValue(); $("#waitlistDateTo").value = ""; $("#waitlistTimePreference").value = "any"; $("#waitlistDoctor").value = $("#appointmentDoctorFilter").value || ""; $("#waitlistNotes").value = ""; $("#waitlistDialog").showModal();
+  renderVisitOptions(); $("#waitlistPatient").innerHTML = state.patients.map((p) => H`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(""); enablePatientSelectSearch($("#waitlistPatient")); $("#waitlistId").value = ""; $("#waitlistDateFrom").value = localDateValue(); $("#waitlistDateTo").value = ""; $("#waitlistTimePreference").value = "any"; $("#waitlistDoctor").value = $("#appointmentDoctorFilter").value || ""; $("#waitlistNotes").value = ""; $("#waitlistDialog").showModal();
 }
 
 async function saveWaitlist() {
   const id = $("#waitlistId").value || uid(); const data = { id, patientId: $("#waitlistPatient").value, dateFrom: $("#waitlistDateFrom").value, dateTo: $("#waitlistDateTo").value, timePreference: $("#waitlistTimePreference").value, doctor: $("#waitlistDoctor").value.trim(), notes: $("#waitlistNotes").value.trim(), status: "waiting", createdAt: new Date().toISOString(), createdBy: auth.currentUser.uid };
-  await getCollectionRef("waitlist").doc(id).set(data, { merge: true }); recordActivity({ action: "created", entityType: "appointment", entityId: id, patientId: data.patientId, title: "Paciente agregado a lista de espera", detail: data.notes || data.dateFrom }).catch(console.error); $("#waitlistDialog").close(); toast("Paciente agregado a la lista de espera.");
+  await getCollectionRef("waitlist").doc(id).set(data, { merge: true }); recordActivity({ action: "created", entityType: "appointment", entityId: id, patientId: data.patientId, title: "Paciente agregado a lista de espera", detail: data.notes || data.dateFrom }).catch(console.error); $("#waitlistDialog").close(); toast(T("Paciente agregado a la lista de espera."));
 }
 
 function bookWaitlist(id) {
@@ -2646,13 +2651,13 @@ function bookWaitlist(id) {
 }
 
 async function removeWaitlist(id) {
-  if (!confirm("¿Quitar este paciente de la lista de espera?")) return; await getCollectionRef("waitlist").doc(id).delete(); toast("Paciente retirado de la lista.");
+  if (!confirm(T("¿Quitar este paciente de la lista de espera?"))) return; await getCollectionRef("waitlist").doc(id).delete(); toast(T("Paciente retirado de la lista."));
 }
 
 async function setAppointmentStatus(id, status) {
   const item = state.appointments.find((appointment) => appointment.id === id);
   if (!item) return;
-  try { await saveAppointment({ ...item, status, updatedAt: new Date().toISOString() }); toast(`Cita ${appointmentStatus(status).label.toLowerCase()}`); } catch (error) { console.error(error); toast("No se pudo actualizar la cita"); }
+  try { await saveAppointment({ ...item, status, updatedAt: new Date().toISOString() }); toast(S`Cita ${appointmentStatus(status).label.toLowerCase()}`); } catch (error) { console.error(error); toast(T("No se pudo actualizar la cita")); }
 }
 
 async function startAppointmentVisit(id) {
@@ -2665,8 +2670,8 @@ async function startAppointmentVisit(id) {
 
 function openPaymentDialog(visitId = "", patientId = "") {
   const eligible = state.visits.filter((visit) => balance(visit) > 0 && (!patientId || visit.patientId === patientId));
-  if (!eligible.length) { toast("No hay facturas con balance pendiente."); return; }
-  $("#paymentVisit").innerHTML = eligible.map((visit) => `<option value="${visit.id}">${escapeHtml(patient(visit.patientId)?.name || "Paciente")} · ${escapeHtml(invoiceNumber(visit))} · ${money(balance(visit))}</option>`).join("");
+  if (!eligible.length) { toast(T("No hay facturas con balance pendiente.")); return; }
+  $("#paymentVisit").innerHTML = eligible.map((visit) => H`<option value="${visit.id}">${escapeHtml(patient(visit.patientId)?.name || T("Paciente"))} · ${escapeHtml(invoiceNumber(visit))} · ${money(balance(visit))}</option>`).join("");
   $("#paymentVisit").value = eligible.some((visit) => visit.id === visitId) ? visitId : eligible[0].id;
   [...$("#paymentVisit").options].forEach((option) => { option.dataset.patientId = state.visits.find((visit) => visit.id === option.value)?.patientId || ""; });
   enablePatientSelectSearch($("#paymentVisit"), { placeholder: "Buscar paciente o factura...", ariaLabel: "Buscar paciente o factura pendiente" });
@@ -2690,7 +2695,7 @@ function updatePaymentContext() {
   $("#paymentMethod").value = insured ? "insurance_eft" : "cash";
   togglePaymentCardFields();
   $("#paymentAmount").max = balance(visit).toFixed(2);
-  $("#paymentContext").innerHTML = `<div><small>Paciente</small><strong>${escapeHtml(p?.name || "Paciente")}</strong></div><div><small>Factura</small><strong>${escapeHtml(invoiceNumber(visit))}</strong></div><div><small>Balance actual</small><strong>${money(balance(visit))}</strong></div>`;
+  $("#paymentContext").innerHTML = H`<div><small>Paciente</small><strong>${escapeHtml(p?.name || T("Paciente"))}</strong></div><div><small>Factura</small><strong>${escapeHtml(invoiceNumber(visit))}</strong></div><div><small>Balance actual</small><strong>${money(balance(visit))}</strong></div>`;
 }
 
 function openPatientFinance(id) {
@@ -2701,17 +2706,17 @@ function openPatientFinance(id) {
   const entries = state.payments.filter((entry) => entry.patientId === id).sort((a, b) => new Date(b.date) - new Date(a.date));
   const data = totals(visits);
   $("#patientFinanceTitle").textContent = p.name;
-  $("#patientFinanceDetail").innerHTML = `${patientHasAlert(p) ? `<div class="patient-finance-alert"><div><strong>📌 ${escapeHtml(p.patientAlertMessage)}</strong><span>${patientAlertDateLabel(p)}</span></div><button type="button" class="btn light" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="finance-profile-summary"><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div>
-    <div class="finance-profile-info"><span>${escapeHtml(p.phone || "Sin teléfono")}</span><span>${escapeHtml(payerLabel(p))}</span>${p.insuranceMemberId ? `<span>Póliza: ${escapeHtml(p.insuranceMemberId)}</span>` : ""}</div>
-    <h4>Facturas y consultas</h4><div class="finance-profile-list">${visits.length ? visits.map((visit) => `<div><span>${fmtDate(visit.date)}<small>${escapeHtml(invoiceNumber(visit))} · ${escapeHtml(visit.reason || "Consulta")}</small></span><strong>${money(balance(visit))}<small>balance</small></strong><button class="btn light" onclick="openInvoice('${visit.id}')">Factura</button></div>`).join("") : `<div class="empty">Sin facturas.</div>`}</div>
-    <h4>Movimientos</h4><div class="finance-profile-list">${entries.length ? entries.map((entry) => `<div><span>${fmtDate(entry.date)}<small>${entry.source === "insurance" ? "Seguro" : "Paciente"} · ${escapeHtml(entry.reference || entry.method || "Pago")}</small></span><strong>${money(entry.amount)}</strong></div>`).join("") : `<div class="empty">Sin movimientos individuales.</div>`}</div>`;
+  $("#patientFinanceDetail").innerHTML = H`${patientHasAlert(p) ? H`<div class="patient-finance-alert"><div><strong>📌 ${escapeHtml(p.patientAlertMessage)}</strong><span>${patientAlertDateLabel(p)}</span></div><button type="button" class="btn light" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}<div class="finance-profile-summary"><div><small>Facturado</small><strong>${money(data.billed)}</strong></div><div><small>Pagado</small><strong>${money(data.paid)}</strong></div><div><small>Balance</small><strong>${money(data.debt)}</strong></div></div>
+    <div class="finance-profile-info"><span>${escapeHtml(p.phone || T("Sin teléfono"))}</span><span>${escapeHtml(payerLabel(p))}</span>${p.insuranceMemberId ? H`<span>Póliza: ${escapeHtml(p.insuranceMemberId)}</span>` : ""}</div>
+    <h4>Facturas y consultas</h4><div class="finance-profile-list">${visits.length ? visits.map((visit) => H`<div><span>${fmtDate(visit.date)}<small>${escapeHtml(invoiceNumber(visit))} · ${escapeHtml(visit.reason || T("Consulta"))}</small></span><strong>${money(balance(visit))}<small>balance</small></strong><button class="btn light" onclick="openInvoice('${visit.id}')">Factura</button></div>`).join("") : H`<div class="empty">Sin facturas.</div>`}</div>
+    <h4>Movimientos</h4><div class="finance-profile-list">${entries.length ? entries.map((entry) => H`<div><span>${fmtDate(entry.date)}<small>${entry.source === "insurance" ? T("Seguro") : T("Paciente")} · ${escapeHtml(entry.reference || entry.method || T("Pago"))}</small></span><strong>${money(entry.amount)}</strong></div>`).join("") : H`<div class="empty">Sin movimientos individuales.</div>`}</div>`;
   $("#patientFinancePaymentBtn").disabled = data.debt <= 0;
   $("#patientFinanceDialog").showModal();
 }
 
 function openPatientDialog(p = null) {
-  $("#patientDialogTitle").textContent = p ? "Editar paciente" : "Nuevo paciente";
-  $("#patientSubmitBtn").textContent = p ? "Guardar cambios" : "Guardar paciente";
+  $("#patientDialogTitle").textContent = p ? T("Editar paciente") : T("Nuevo paciente");
+  $("#patientSubmitBtn").textContent = p ? T("Guardar cambios") : T("Guardar paciente");
   $("#patientId").value = p?.id || "";
   $("#patientName").value = p?.name || "";
   $("#patientPhone").value = p?.phone || "";
@@ -2743,7 +2748,7 @@ function openPatientDialog(p = null) {
 
 function openVisitDialog(visit = null) {
   if (!state.patients.length) {
-    toast("Primero registra un paciente.");
+    toast(T("Primero registra un paciente."));
     openPatientDialog();
     return;
   }
@@ -2751,7 +2756,7 @@ function openVisitDialog(visit = null) {
   renderVisitOptions();
   pendingAppointmentId = visit?.appointmentId || null;
 
-  $("#visitDialogTitle").textContent = visit?.id ? "Editar consulta" : "Nueva consulta";
+  $("#visitDialogTitle").textContent = visit?.id ? T("Editar consulta") : T("Nueva consulta");
   $("#visitId").value = visit?.id || "";
   $("#visitPatient").value = visit?.patientId || state.patients[0].id;
   $("#visitType").value = visit?.type || "Presencial";
@@ -2798,18 +2803,18 @@ function renderVisitPatientBanner() {
   const clinicalRecord = p ? state.clinicalRecords.find((entry) => entry.id === p.id || entry.patientId === p.id) : null;
   const banner = $("#visitPatientBanner");
   if (!p) {
-    banner.innerHTML = `<div class="patient-avatar">?</div><div><small>Paciente</small><strong>Selecciona un paciente</strong></div>`;
+    banner.innerHTML = H`<div class="patient-avatar">?</div><div><small>Paciente</small><strong>Selecciona un paciente</strong></div>`;
     return;
   }
   const initials = p.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  banner.innerHTML = `
+  banner.innerHTML = H`
     <div class="patient-avatar">${escapeHtml(initials)}</div>
-    <div class="patient-banner-name"><small>Expediente del paciente</small><strong>${escapeHtml(p.name)}</strong><span>${escapeHtml(p.document || "Sin documento")}</span></div>
+    <div class="patient-banner-name"><small>Expediente del paciente</small><strong>${escapeHtml(p.name)}</strong><span>${escapeHtml(p.document || T("Sin documento"))}</span></div>
     <div><small>Edad</small><strong>${escapeHtml(p.age || "—")}</strong></div>
     <div><small>Teléfono</small><strong>${escapeHtml(p.phone || "—")}</strong></div>
-    <div><small>Seguro</small><strong>${escapeHtml(p.insuranceCompany || (p.payerType === "insurance" ? "Registrado" : "Pago propio"))}</strong></div>
-    ${clinicalRecord?.allergies?.length ? `<div class="patient-banner-clinical-alert"><small>⚠ Alergias</small><strong>${escapeHtml(clinicalRecord.allergies.join(" · "))}</strong></div>` : ""}
-    ${patientHasAlert(p) ? `<div class="patient-banner-alert"><span>📌</span><div><strong>${escapeHtml(p.patientAlertMessage)}</strong><small>${patientAlertDateLabel(p)}</small></div><button type="button" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}`;
+    <div><small>Seguro</small><strong>${escapeHtml(p.insuranceCompany || (p.payerType === "insurance" ? "Registrado" : T("Pago propio")))}</strong></div>
+    ${clinicalRecord?.allergies?.length ? H`<div class="patient-banner-clinical-alert"><small>⚠ Alergias</small><strong>${escapeHtml(clinicalRecord.allergies.join(" · "))}</strong></div>` : ""}
+    ${patientHasAlert(p) ? H`<div class="patient-banner-alert"><span>📌</span><div><strong>${escapeHtml(p.patientAlertMessage)}</strong><small>${patientAlertDateLabel(p)}</small></div><button type="button" onclick="resolvePatientAlert('${p.id}')">Marcar resuelta</button></div>` : ""}`;
 }
 
 function closeVisitWorkspace() {
@@ -2820,7 +2825,7 @@ function closeVisitWorkspace() {
 function renderVisitLineItems(items = []) {
   const box = $("#visitLineItems");
   const rows = items.length ? items : [{ id: uid(), description: "", price: "" }];
-  box.innerHTML = rows.map((item) => `
+  box.innerHTML = rows.map((item) => H`
     <div class="service-line" data-line-id="${escapeHtml(item.id || uid())}">
       <label class="field-group"><span class="field-label">Servicio o procedimiento</span>
         <input class="service-description" type="text" value="${escapeHtml(item.description)}" placeholder="Ej. Consulta, tratamiento o producto" />
@@ -2964,14 +2969,14 @@ function editPatient(id) {
 }
 
 async function deletePatient(id) {
-  if (!confirm("¿Eliminar este paciente y sus consultas relacionadas?")) return;
+  if (!confirm(T("¿Eliminar este paciente y sus consultas relacionadas?"))) return;
   try {
     await deletePatientEntry(id);
     render();
-    toast("Paciente eliminado");
+    toast(T("Paciente eliminado"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo eliminar el paciente");
+    toast(T("No se pudo eliminar el paciente"));
   }
 }
 
@@ -2981,14 +2986,14 @@ function editVisit(id) {
 }
 
 async function deleteVisit(id) {
-  if (!confirm("¿Eliminar esta consulta?")) return;
+  if (!confirm(T("¿Eliminar esta consulta?"))) return;
   try {
     await deleteVisitEntry(id);
     render();
-    toast("Consulta eliminada");
+    toast(T("Consulta eliminada"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo eliminar la consulta");
+    toast(T("No se pudo eliminar la consulta"));
   }
 }
 
@@ -3058,8 +3063,8 @@ $("#appointmentCreateBtn").addEventListener("click", () => openAppointmentDialog
 $("#roomCreateBtn").addEventListener("click", () => openRoomDialog());
 $("#roomRefreshBtn").addEventListener("click", renderRooms);
 $("#roomAssignPatient").addEventListener("change", renderRoomAppointmentChoices);
-$("#roomForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveRoomFromDialog(); } catch (error) { console.error(error); toast("No se pudo guardar el room."); } });
-$("#roomAssignForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await assignRoomFromDialog(); } catch (error) { console.error(error); toast("No se pudo asignar el room."); } });
+$("#roomForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveRoomFromDialog(); } catch (error) { console.error(error); toast(T("No se pudo guardar el room.")); } });
+$("#roomAssignForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await assignRoomFromDialog(); } catch (error) { console.error(error); toast(T("No se pudo asignar el room.")); } });
 $("#ipadLaunchForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -3076,11 +3081,11 @@ $("#ipadLaunchForm").addEventListener("submit", async (event) => {
       "forbidden": "Tu usuario no tiene permiso para abrir este portal.",
       "unauthenticated": "Tu sesión venció. Vuelve a iniciar sesión."
     };
-    toast(messages[error.message] || (error instanceof TypeError ? "No se pudo conectar al portal. Revisa internet y vuelve a intentar." : "No se pudo iniciar la pantalla del paciente. Actualiza Rooms e intenta nuevamente."));
+    toast(messages[error.message] || (error instanceof TypeError ? T("No se pudo conectar al portal. Revisa internet y vuelve a intentar.") : T("No se pudo iniciar la pantalla del paciente. Actualiza Rooms e intenta nuevamente.")));
   } finally { form.dataset.sending = "false"; if (button) button.disabled = false; }
 });
 $("#ipadCreateTemplateBtn").addEventListener("click", () => { pendingRoomIpadId = $("#ipadRoomId").value; $("#ipadLaunchDialog").close(); openFormTemplateDialog(); });
-$("#copyPatientPortalBtn").addEventListener("click", async () => { await navigator.clipboard.writeText($("#patientPortalUrl").value); toast("Enlace del Portal de Room copiado."); });
+$("#copyPatientPortalBtn").addEventListener("click", async () => { await navigator.clipboard.writeText($("#patientPortalUrl").value); toast(T("Enlace del Portal de Room copiado.")); });
 $("#openPatientPortalBtn").addEventListener("click", () => window.open($("#patientPortalUrl").value, "_blank", "noopener"));
 $("#kioskExitBtn").addEventListener("click", exitPatientKiosk);
 $("#waitlistCreateBtn").addEventListener("click", openWaitlistDialog);
@@ -3211,10 +3216,10 @@ $("#appointmentForm").addEventListener("submit", async (event) => {
     visitId: existing?.visitId || "",
     waitlistId: existing?.waitlistId || activeWaitlistId || ""
   };
-  if (!data.patientId || !data.date || data.reason.length < 2) { toast("Completa paciente, fecha y motivo."); return; }
+  if (!data.patientId || !data.date || data.reason.length < 2) { toast(T("Completa paciente, fecha y motivo.")); return; }
   const recurrence = existing ? "none" : $("#appointmentRecurrence").value; const count = recurrence === "none" ? 1 : Number($("#appointmentRecurrenceCount").value || 2); const seriesId = count > 1 ? uid() : ""; const dates = recurringAppointmentDates(data.date, recurrence, count); const candidates = dates.map((date, index) => ({ ...data, id: index === 0 ? data.id : uid(), date, recurrence, seriesId, seriesIndex: index + 1, seriesCount: count }));
-  for (const candidate of candidates) { const availabilityError = appointmentAvailabilityError(candidate); if (availabilityError) { toast(availabilityError); return; } const conflict = findAppointmentConflict(candidate); if (conflict) { const conflictPatient = patient(conflict.patientId); toast(`Conflicto el ${fmtDate(candidate.date)} con ${conflictPatient?.name || "otra cita"}.`); return; } }
-  try { for (const candidate of candidates) await saveAppointment(candidate); if (data.waitlistId) await getCollectionRef("waitlist").doc(data.waitlistId).set({ status: "scheduled", appointmentId: candidates[0].id, scheduledAt: new Date().toISOString() }, { merge: true }); activeWaitlistId = null; $("#appointmentDialog").close(); $("#appointmentDateFilter").value = data.date.slice(0, 10); renderAppointments(); toast(existing ? "Cita actualizada" : count > 1 ? `${count} citas recurrentes programadas` : "Cita programada"); } catch (error) { console.error(error); toast("No se pudo guardar la cita"); }
+  for (const candidate of candidates) { const availabilityError = appointmentAvailabilityError(candidate); if (availabilityError) { toast(availabilityError); return; } const conflict = findAppointmentConflict(candidate); if (conflict) { const conflictPatient = patient(conflict.patientId); toast(S`Conflicto el ${fmtDate(candidate.date)} con ${conflictPatient?.name || T("otra cita")}.`); return; } }
+  try { for (const candidate of candidates) await saveAppointment(candidate); if (data.waitlistId) await getCollectionRef("waitlist").doc(data.waitlistId).set({ status: "scheduled", appointmentId: candidates[0].id, scheduledAt: new Date().toISOString() }, { merge: true }); activeWaitlistId = null; $("#appointmentDialog").close(); $("#appointmentDateFilter").value = data.date.slice(0, 10); renderAppointments(); toast(existing ? T("Cita actualizada") : count > 1 ? `${count} citas recurrentes programadas` : T("Cita programada")); } catch (error) { console.error(error); toast(T("No se pudo guardar la cita")); }
 });
 
 $("#paymentForm").addEventListener("submit", async (event) => {
@@ -3237,14 +3242,14 @@ $("#paymentForm").addEventListener("submit", async (event) => {
     state.payments = [...state.payments.filter((item) => item.id !== entry.id), entry];
     renderVisitPaymentPanel(visit);
     $("#paymentDialog").close();
-    toast("Pago aplicado correctamente");
-  } catch (error) { console.error(error); toast("No se pudo registrar el pago"); }
+    toast(T("Pago aplicado correctamente"));
+  } catch (error) { console.error(error); toast(T("No se pudo registrar el pago")); }
 });
 
 $("#taskForm").addEventListener("submit", async (event) => {
   event.preventDefault(); const id = $("#taskId").value || uid(); const existing = state.tasks.find((task) => task.id === id);
   const data = { id, title: $("#taskTitle").value.trim(), patientId: $("#taskPatient").value, type: $("#taskType").value, dueDate: $("#taskDueDate").value, priority: $("#taskPriority").value, description: $("#taskDescription").value.trim(), status: existing?.status || "open", createdAt: existing?.createdAt || new Date().toISOString(), createdBy: existing?.createdBy || auth.currentUser.uid, updatedAt: new Date().toISOString() };
-  if (!data.title) return toast("Escribe el título de la tarea."); try { await saveTask(data); $("#taskDialog").close(); toast(existing ? "Tarea actualizada" : "Tarea creada"); } catch (error) { console.error(error); toast("No se pudo guardar la tarea"); }
+  if (!data.title) return toast(T("Escribe el título de la tarea.")); try { await saveTask(data); $("#taskDialog").close(); toast(existing ? T("Tarea actualizada") : T("Tarea creada")); } catch (error) { console.error(error); toast(T("No se pudo guardar la tarea")); }
 });
 
 $("#patientForm").addEventListener("submit", async (event) => {
@@ -3284,10 +3289,10 @@ $("#patientForm").addEventListener("submit", async (event) => {
     await savePatient(data);
     $("#patientDialog").close();
     render();
-    toast(id ? "Paciente actualizado" : "Paciente registrado");
+    toast(id ? T("Paciente actualizado") : T("Paciente registrado"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo guardar el paciente");
+    toast(T("No se pudo guardar el paciente"));
   }
 });
 
@@ -3344,10 +3349,10 @@ $("#visitForm").addEventListener("submit", async (event) => {
     pendingAppointmentId = null;
     showPage("visits");
     render();
-    toast(id ? "Consulta actualizada" : "Consulta registrada");
+    toast(id ? T("Consulta actualizada") : T("Consulta registrada"));
   } catch (error) {
     console.error(error);
-    toast("No se pudo guardar la consulta");
+    toast(T("No se pudo guardar la consulta"));
   }
 });
 
@@ -3378,10 +3383,10 @@ $("#settingsForm").addEventListener("submit", async (event) => {
   try {
     await saveSettings();
     render();
-    toast("Ajustes guardados");
+    toast(T("Ajustes guardados"));
   } catch (error) {
     console.error(error);
-    toast("No se pudieron guardar los ajustes");
+    toast(T("No se pudieron guardar los ajustes"));
   }
 });
 
@@ -3400,7 +3405,7 @@ $("#clinicLogoInput").addEventListener("change", async (event) => {
   try {
     state.settings.clinicLogo = await readLogoFile(event.target.files[0]);
     renderSettings();
-    toast("Logo listo. Guarda los cambios para conservarlo.");
+    toast(T("Logo listo. Guarda los cambios para conservarlo."));
   } catch (error) {
     event.target.value = "";
     toast(error.message);
@@ -3413,10 +3418,10 @@ $("#clinicDocumentInput").addEventListener("change", async (event) => {
   try {
     event.target.disabled = true;
     for (const file of files) await uploadClinicDocument(file);
-    toast(`${files.length} documento(s) cargado(s)`);
+    toast(S`${files.length} documento(s) cargado(s)`);
   } catch (error) {
     console.error(error);
-    toast(error.message || "No se pudieron subir los documentos");
+    toast(error.message || T("No se pudieron subir los documentos"));
   } finally {
     event.target.disabled = false;
     event.target.value = "";
@@ -3460,26 +3465,26 @@ $("#removeClinicLogo").addEventListener("click", () => {
   state.settings.clinicLogo = "";
   $("#clinicLogoInput").value = "";
   renderSettings();
-  toast("Logo removido. Guarda los cambios.");
+  toast(T("Logo removido. Guarda los cambios."));
 });
 
 $("#addTeamMember").addEventListener("click", createTeamMember);
 $("#createFormTemplateBtn").addEventListener("click", () => openFormTemplateDialog());
 $("#addFormQuestionBtn").addEventListener("click", () => addFormQuestionRow());
-$("#formTemplateForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveFormTemplateFromDialog(); } catch (error) { console.error(error); toast("No se pudo guardar la plantilla."); } });
+$("#formTemplateForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveFormTemplateFromDialog(); } catch (error) { console.error(error); toast(T("No se pudo guardar la plantilla.")); } });
 $("#addDocumentFieldBtn").addEventListener("click", () => addDocumentFieldRow());
-$("#documentFieldsForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveDocumentFields(); } catch (error) { console.error(error); toast("No se pudo guardar la versión Room."); } });
-$("#patientDigitalForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await savePatientDigitalForm(); } catch (error) { console.error(error); toast("No se pudieron guardar las respuestas."); } });
-$("#communicationForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCommunication(); } catch (error) { console.error(error); toast("No se pudo registrar la comunicación."); } });
-$("#clinicalRecordForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveClinicalRecord(); } catch (error) { console.error(error); toast("No se pudo guardar el resumen clínico."); } });
+$("#documentFieldsForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveDocumentFields(); } catch (error) { console.error(error); toast(T("No se pudo guardar la versión Room.")); } });
+$("#patientDigitalForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await savePatientDigitalForm(); } catch (error) { console.error(error); toast(T("No se pudieron guardar las respuestas.")); } });
+$("#communicationForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCommunication(); } catch (error) { console.error(error); toast(T("No se pudo registrar la comunicación.")); } });
+$("#clinicalRecordForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveClinicalRecord(); } catch (error) { console.error(error); toast(T("No se pudo guardar el resumen clínico.")); } });
 $("#leadCreateBtn").addEventListener("click", () => openLeadDialog()); $("#campaignCreateBtn").addEventListener("click", () => openCampaignDialog());
 $("#leadSearch").addEventListener("input", renderCrm); $("#leadSourceFilter").addEventListener("change", renderCrm); $("#leadOwnerFilter").addEventListener("change", renderCrm);
-$("#leadForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveLead(); } catch (error) { console.error(error); toast("No se pudo guardar el prospecto."); } });
-$("#campaignForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCampaign(); } catch (error) { console.error(error); toast("No se pudo guardar la campaña."); } });
-$("#waitlistForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveWaitlist(); } catch (error) { console.error(error); toast("No se pudo guardar la lista de espera."); } });
-$("#expenseForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveExpense(); } catch (error) { console.error(error); toast("No se pudo guardar el gasto."); } });
-$("#adjustmentForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveAdjustment(); } catch (error) { console.error(error); toast("No se pudo aplicar el ajuste."); } });
-$("#cashClosingForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCashClosing(); } catch (error) { console.error(error); toast("No se pudo guardar el cierre."); } });
+$("#leadForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveLead(); } catch (error) { console.error(error); toast(T("No se pudo guardar el prospecto.")); } });
+$("#campaignForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCampaign(); } catch (error) { console.error(error); toast(T("No se pudo guardar la campaña.")); } });
+$("#waitlistForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveWaitlist(); } catch (error) { console.error(error); toast(T("No se pudo guardar la lista de espera.")); } });
+$("#expenseForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveExpense(); } catch (error) { console.error(error); toast(T("No se pudo guardar el gasto.")); } });
+$("#adjustmentForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveAdjustment(); } catch (error) { console.error(error); toast(T("No se pudo aplicar el ajuste.")); } });
+$("#cashClosingForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveCashClosing(); } catch (error) { console.error(error); toast(T("No se pudo guardar el cierre.")); } });
 $("#cashClosingDate").addEventListener("change", updateCashClosingDifference); $("#cashCounted").addEventListener("input", updateCashClosingDifference);
 $("#reportDateFrom").addEventListener("change", renderReports); $("#reportDateTo").addEventListener("change", renderReports); $("#reportDoctorFilter").addEventListener("change", renderReports); $("#exportAnalyticsCsvBtn").addEventListener("click", exportAnalyticsCsv);
 $("#reportThisMonth").addEventListener("click", () => { const now = new Date(); $("#reportDateFrom").value = localDateValue(new Date(now.getFullYear(), now.getMonth(), 1)); $("#reportDateTo").value = localDateValue(now); renderReports(); });
@@ -3514,14 +3519,14 @@ $("#loginForm").addEventListener("submit", async (event) => {
   const password = $("#loginPassword").value;
 
   if (!email || !password) {
-    toast("Ingresa correo y contraseña.");
+    toast(T("Ingresa correo y contraseña."));
     return;
   }
 
   try {
     initFirebase();
     await auth.signInWithEmailAndPassword(email, password);
-    toast("Sesión iniciada");
+    toast(T("Sesión iniciada"));
   } catch (error) {
     console.error(error);
     toast(getAuthErrorMessage(error));
@@ -3537,22 +3542,22 @@ $("#registerForm").addEventListener("submit", async (event) => {
   const confirm = $("#registerConfirm").value;
 
   if (!clinicName || !email || !password || !confirm) {
-    toast("Completa todos los campos de registro.");
+    toast(T("Completa todos los campos de registro."));
     return;
   }
 
   if (clinicName.length < 2) {
-    toast("Escribe un nombre válido para la clínica.");
+    toast(T("Escribe un nombre válido para la clínica."));
     return;
   }
 
   if (password !== confirm) {
-    toast("Las contraseñas no coinciden.");
+    toast(T("Las contraseñas no coinciden."));
     return;
   }
 
   if (password.length < 6) {
-    toast("La contraseña debe tener al menos 6 caracteres.");
+    toast(T("La contraseña debe tener al menos 6 caracteres."));
     return;
   }
 
@@ -3593,7 +3598,7 @@ $("#registerForm").addEventListener("submit", async (event) => {
   if (createdUser) {
     await handleAuthState(createdUser);
     showPage("dashboard");
-    toast(settingsSaved ? "Cuenta creada. Puedes completar los datos en Ajustes." : "Tu cuenta fue creada, pero no se guardaron los datos de la clínica. Complétalos en Ajustes; no necesitas registrarte otra vez.");
+    toast(settingsSaved ? T("Cuenta creada. Puedes completar los datos en Ajustes.") : T("Tu cuenta fue creada, pero no se guardaron los datos de la clínica. Complétalos en Ajustes; no necesitas registrarte otra vez."));
   }
 });
 
@@ -3610,6 +3615,23 @@ $("#registerShowPassword").addEventListener("change", (event) => {
   $("#registerConfirm").type = show ? "text" : "password";
 });
 
+window.addEventListener("clinic-language-change", () => {
+  // Re-render system copy without dropping an in-progress form or changing data.
+  const fields = [...document.querySelectorAll("input[id],select[id],textarea[id]")].filter(node => node.type !== "file").map(node => ({ id: node.id, value: node.value, checked: node.checked }));
+  const focused = document.activeElement?.id;
+  if (activeClinicId && auth?.currentUser) {
+    const pageId = document.querySelector(".page.active")?.id || "dashboard";
+    showPage(pageId);
+    updateUserInfo();
+  }
+  for (const field of fields) {
+    const node = document.getElementById(field.id);
+    if (node) { node.value = field.value; if ("checked" in node) node.checked = field.checked; node.setCustomValidity?.(""); }
+  }
+  for (const id of ["patientDialogTitle", "patientSubmitBtn", "visitDialogTitle", "appointmentDialogTitle", "taskDialogTitle", "leadDialogTitle", "campaignDialogTitle", "saveSignatureBtn"]) ClinicI18n.refreshSystemText(document.getElementById(id));
+  if (focused) document.getElementById(focused)?.focus({ preventScroll: true });
+});
+
 async function handleAuthState(user) {
   if (registrationInProgress) return;
   if (user) {
@@ -3619,14 +3641,16 @@ async function handleAuthState(user) {
       applyRoleAccess();
       showAppScreen();
       await loadClinicData();
+      await window.ClinicCommerce?.refreshAccess(user);
     } catch (error) {
       console.error(error);
-      toast(error.message || "No se pudo cargar datos de la clínica.");
+      toast(error.message || T("No se pudo cargar datos de la clínica."));
       if (String(error.message || "").includes("desactivada")) await auth.signOut();
       else showAppScreen();
     }
   } else {
     activeClinicId = null;
+    window.ClinicCommerce?.refreshAccess(null);
     currentAccess = { role: "admin", status: "active", name: "" };
     showAuthScreen();
   }
@@ -3637,10 +3661,10 @@ async function handleAuthState(user) {
     initFirebase();
     auth.onAuthStateChanged(handleAuthState, (error) => {
       console.error(error);
-      toast("Error de autenticación.");
+      toast(T("Error de autenticación."));
     });
   } catch (error) {
     console.error(error);
-    toast("No se pudo inicializar Firebase");
+    toast(T("No se pudo inicializar Firebase"));
   }
 })();

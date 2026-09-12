@@ -46,7 +46,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
       - name: Check portal regressions
-        run: node tests/portal-regression.cjs
+        run: node tests/portal-regression.cjs && node tests/platform-regression.cjs
 
 
       - name: Install Functions dependencies

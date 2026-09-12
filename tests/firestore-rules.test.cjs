@@ -41,6 +41,10 @@ async function main() {
     });
 
     const owner = env.authenticatedContext(clinicId).firestore();
+    const platformOwner = env.authenticatedContext("platform-owner", { platformAdmin: true }).firestore();
+    await assertFails(setDoc(doc(owner, "platformClinics", clinicId), { status: "paid" }));
+    await assertFails(setDoc(doc(platformOwner, "platformClinics", clinicId), { status: "paid" }));
+    await assertFails(getDoc(doc(platformOwner, "clinics", clinicId, "patients", "patient-1")));
     const reception = env.authenticatedContext("reception-user").firestore();
     const clinical = env.authenticatedContext("clinical-user").firestore();
     const accounting = env.authenticatedContext("accounting-user").firestore();
